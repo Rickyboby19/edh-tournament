@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Règlements — STQc Saison 1{% endblock %}
+{% block content %}
+
+<section class="hero card">
+  <h2>Tournoi Commander STQc — Saison 1</h2>
+  <p>Règlements, système de points, contraintes de deck et déroulement du tournoi.</p>
+  <div class="chips" style="margin-top:8px">
+    <a class="chip" href="#untap">UNTAP STEP</a>
+    <a class="chip" href="#upkeep">UPKEEP</a>
+    <a class="chip" href="#draw">DRAW STEP (Points)</a>
+    <a class="chip" href="#main">MAIN PHASE 1 (Règlements)</a>
+    <a class="chip" href="#process">Procédure & Organisation</a>
+  </div>
+</section>
+
+<!-- UNTAP -->
+<section id="untap" class="card" style="margin-top:16px">
+  <h3>UNTAP STEP</h3>
+  <p>Bienvenue dans le tournoi Commander STQc — 1<sup>ère</sup> saison. Dans cette page, vous trouvez l’ensemble des règles afin d’assurer une compétition équitable et surtout remplie de plaisir !</p>
+</section>
+
+<!-- UPKEEP -->
+<section id="upkeep" class="card" style="margin-top:16px">
+  <h3>UPKEEP</h3>
+  <p>
+    Depuis près d’un an, les admin et modo ont décidé de créer ce groupe pour rassembler les joueurs de MTG à travers le Québec et jouer de chez soi, tout en offrant une expérience comparable à un LGS.
+    Notre premier grand projet : <strong>CRÉER UN TOURNOI</strong>. Avec votre participation et votre fair‑play, nous souhaitons un excellent tournoi qui pourra se répéter.
+  </p>
+  <p>Résumé du contenu :</p>
+  <ul>
+    <li>Règlements du tournoi (Power Level / cartes bannies / règles de jeu)</li>
+    <li>Système de pointage</li>
+    <li>Démarche à suivre</li>
+    <li>Rôle des administrateurs</li>
+    <li>Outils de référence</li>
+    <li>Prix à gagner</li>
+  </ul>
+</section>
+
+<!-- DRAW STEP -->
+<section id="draw" class="card" style="margin-top:16px">
+  <h3>DRAW STEP — Système de pointage</h3>
+  <p>
+    Le but n’est pas de « rincer » la table au plus vite : selon les circonstances, vous pouvez gagner la partie tout en marquant moins de points qu’un autre joueur.
+    Optimisez vos choix pour cumuler un maximum de points et accéder à la demi‑finale puis à la grande finale !
+  </p>
+
+  <h4>Objectifs (points positifs)</h4>
+  <ol>
+    <li><strong>Game Winner</strong> — <b>+2 pts</b></li>
+    <li><strong>Kill player</strong> — <b>+1 pt</b></li>
+    <li><strong>First blood</strong> — <b>+1 pt</b></li>
+    <li><strong>Believe in my boss</strong> — <b>+1 pt</b><br><span class="hint">(Lancer le commandant avec triple taxe = +6 incolore)</span></li>
+    <li><strong>The Boss gets the job done</strong> — <b>+1 pt</b><br><span class="hint">(Tuer 1 joueur en dégâts de commandant, 1×/partie)</span></li>
+    <li><strong>Head Shot!</strong> — <b>+1 pt</b><br><span class="hint">(One‑shot un adversaire qui a ≥25 pv)</span></li>
+    <li><strong>The Hunter Skillz</strong> — <b>+1 pt</b><br><span class="hint">(Détruire/Exiler une créature cible avec ≥10 de force)</span></li>
+    <li><strong>The Underdog</strong> — <b>+1 pt</b><br><span class="hint">(Gagner en ayant le moins de terrains au total)</span></li>
+    <li><strong>Good Health</strong> — <b>+1 pt</b><br><span class="hint">(Atteindre 60 pv via lifelink / gain de vie)</span></li>
+    <li><strong>Super‑Héros</strong> — <b>+1 pt</b><br><span class="hint">(Sauver un autre joueur d’une mort assurée)</span></li>
+    <li><strong>Sharpshooter</strong> — <b>+1 pt</b> à chaque survivant si ≥4 <em>target removal</em> joués dans la partie, <b>+1 pt bonus</b> au joueur qui a atteint ce seuil.</li>
+    <li><strong>The Librarian</strong> — <b>+1 pt</b><br><span class="hint">(Piocher 10 cartes dans un tour, hors carte du draw step)</span></li>
+    <li><strong>Employee of the Month</strong> — <b>+1 pt</b><br><span class="hint">(La même créature tue 2 créatures différentes d’un opponent — combat ou non. Ne peut pas être le commandant.)</span></li>
+    <li><strong>Lawyer Skillz</strong> — <b>+1 pt</b> à tous si la pile atteint ≥4 cartes ; <b>+1 pt bonus</b> si les 4 cartes sont lancées par le même joueur.</li>
+    <li><strong>Robin Hood</strong> — <b>+1 pt</b><br><span class="hint">(Voler ou goad ≥5 créatures différentes d’un autre joueur ; pas ses propres créatures)</span></li>
+  </ol>
+
+  <h4>Pénalités (points négatifs)</h4>
+  <ul>
+    <li><strong>Player Scoop Mid Game</strong> — <b>−20 pts</b> <span class="hint">(et perte des points accumulés de la game en cours)</span></li>
+    <li><strong>Win avant tour 5</strong> — <b>−10 pts</b> <span class="hint">(tous les autres joueurs gagnent +1 pt bonus)</span></li>
+    <li><strong>Tour &gt; 10 min après 2 avertissements</strong> — <b>−1 pt</b></li>
+    <li><strong>Preuve de tricherie</strong> — <b>−30 pts</b> <span class="hint">(sanctions à la discrétion des organisateurs)</span></li>
+    <li><strong>King Making</strong> — <b>−10 pts</b> <span class="hint">(donner volontairement la victoire ; privilégier le hasard — ex. lancer un dé)</span></li>
+  </ul>
+</section>
+
+<!-- MAIN PHASE 1 -->
+<section id="main" class="card" style="margin-top:16px">
+  <h3>MAIN PHASE 1 — Règlements du tournoi</h3>
+
+  <h4>Bracket & style de jeu</h4>
+  <p>Le tournoi se joue en <strong>Bracket 3 (upgraded)</strong>. Implications :</p>
+  <ul>
+    <li>Pas de <em>mass land destruction/denial</em>.</li>
+    <li><strong>Budget max</strong> par deck : <b>250 $ US</b>.</li>
+    <li>Pas d’enchaînement d’<em>extra turns</em> (≥2 / partie).</li>
+    <li><strong>Proxies autorisés</strong> à la valeur de la carte originale, <strong>identiques</strong> à l’original imprimé (pas de cartes dessinées à la main).</li>
+    <li>Seulement les <strong>land tutors</strong> autorisés (ramp).</li>
+    <li>Les versions <em>foil</em> / Secret Lair / full art sont évaluées selon la valeur de la carte originale.</li>
+    <li><strong>Combo infini</strong> accordée à partir du <b>tour 10</b> seulement (sinon sanctions selon le système de points).</li>
+    <li><strong>3 “game changers” max</strong> par deck.<br><span class="hint">Astuce : entrez votre deck sur Moxfield pour valider le nombre de game changers.</span></li>
+    <li>Les combos <strong>stax</strong> ne sont pas autorisées ; un <em>Pillow‑Fort</em> léger et non abusif peut être toléré.</li>
+  </ul>
+
+  <h4>Decklists & validation</h4>
+  <ul>
+    <li>Chaque joueur crée sa decklist sur <strong>Moxfield</strong> et l’envoie en privé à l’organisation pour validation (<em>bracket</em> + spécifications du tournoi).</li>
+    <li>Les <strong>mass milling deck (opponent seulement)</strong> ne sont pas autorisés. Le <em>mill</em> reste toléré tant qu’il n’est pas la synergie principale. Le <strong>self‑mill</strong> est autorisé sans restriction s’il n’implique pas le mill adverse comme synergie principale.</li>
+  </ul>
+
+  <h4>Comportement & fair‑play</h4>
+  <ul>
+    <li>Respect entre joueurs et envers l’organisation ; signaler tout doute de triche après avertissements pour investigation.</li>
+    <li>Chaque joueur note ses points pendant la partie (entraide permise pour clarifier).</li>
+    <li>Un joueur désigné <strong>enregistre la partie</strong> (OBS ou équivalent) et transmet la vidéo à l’organisation après la partie.</li>
+    <li>Avant chaque partie : <strong>shuffle à la caméra</strong> et <strong>compte des cartes</strong> (99+1) à vue.</li>
+    <li>Pendant la partie : <strong>main visible</strong> sur la caméra (face down si vous devez vous absenter), avec un dé indiquant le nombre de cartes en main.</li>
+    <li>L’utilisation de <strong>Moxfield en cours de partie</strong> n’est pas autorisée (proxies acceptées).</li>
+    <li>En cas de questions, sollicitez les juges ou l’organisation.</li>
+  </ul>
+
+  <h4>Structure du tournoi</h4>
+  <ul>
+    <li>Chaque joueur joue <strong>5 parties</strong> sur <strong>5 pods</strong> différents (vous pouvez croiser un même joueur 2×, mais jamais la même table).</li>
+    <li>Après 5 parties, les <strong>8 meilleurs</strong> accèdent à la <strong>demi‑finale</strong> (2 pods de 4), puis <strong>finale à 4</strong>.</li>
+    <li>Modifs de deck : jusqu’à <strong>5 cartes</strong> maxi pendant les <strong>2 premières parties</strong> (avec validation), tout en respectant bracket et règles du tournoi.</li>
+  </ul>
+</section>
+
+<!-- Processus -->
+<section id="process" class="card" style="margin-top:16px">
+  <h3>Procédure & Organisation</h3>
+  <ul>
+    <li>Tableau public : nom des joueurs, valeur totale du deck, commandant. <strong>On ne divulgue pas</strong> la construction détaillée des decks entre joueurs.</li>
+    <li>Les points sont accessibles dans un délai de <strong>24 h</strong> après la dernière partie accomplie.</li>
+    <li>Après revue vidéo, toute correction de points sera expliquée.</li>
+    <li>Après chaque partie, indiquez vos points : détaillez l’intitulé et le total.<br>
+      <span class="hint">Ex. <em>1× Sharpshooter</em> + <em>2× Kill player</em> = 3 pts ; Bonus : <em>1× Lawyer Skillz + BONUS</em> = 2 pts</span>
+    </li>
+  </ul>
+
+  <div class="flash warning" style="margin-top:12px">
+    <strong>Rappel fair‑play.</strong> L’objectif est un environnement plaisant et sain : partage, apprentissage et fun. Merci de respecter ces conditions pour profiter au maximum du projet.
+  </div>
+</section>
+
+{% endblock %}

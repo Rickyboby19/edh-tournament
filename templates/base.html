@@ -30,6 +30,7 @@
     <nav>
       <a href="{{ url_for('index') }}">Accueil</a>
       <a href="{{ url_for('players') }}">Joueurs</a>
+	  <a href="{{ url_for('reglements') }}">Règlements</a>
       <a href="{{ url_for('leaderboard') }}">Leaderboard</a>
 
       {% if current_user.is_authenticated %}

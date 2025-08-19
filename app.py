@@ -170,6 +170,11 @@ def match_detail(match_id):
     players = db.session.query(User).join(MatchPlayer, MatchPlayer.user_id==User.id).filter(MatchPlayer.match_id==m.id).all()
     submissions = Submission.query.filter_by(match_id=m.id).all()
     return render_template("match_detail.html", m=m, players=players, submissions=submissions, objectives=OBJECTIVES)
+    
+    @app.route("/reglements")
+def reglements():
+    return render_template("rules.html")
+
 
 @app.route("/match/<int:match_id>/submit", methods=["GET","POST"])
 @login_required
