@@ -1,0 +1,134 @@
+[
+  {
+    "id": "game_winner",
+    "label": "Game Winner",
+    "points": 2,
+    "type": "bool"
+  },
+  {
+    "id": "kill_player",
+    "label": "Kill player (count)",
+    "points": 1,
+    "type": "int"
+  },
+  {
+    "id": "first_blood",
+    "label": "First blood",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "believe_in_my_boss",
+    "label": "Believe in my boss (cast commander with triple tax)",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "boss_gets_job_done",
+    "label": "The Boss gets the job done (kill 1 player with commander damage)",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "head_shot",
+    "label": "Head Shot! (one-shot kill vs >=25 life)",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "hunter_skillz",
+    "label": "The Hunter Skillz (destroy/exile target creature with power >=10)",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "the_underdog",
+    "label": "The Underdog (win the game with the fewest lands)",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "good_health",
+    "label": "Good Health (reach 60 life)",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "super_heros",
+    "label": "Super-Héros (save another player from certain death)",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "sharpshooter_each",
+    "label": "Sharpshooter — each living player gets 1 point if any player cast/played ≥4 target removals",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "sharpshooter_bonus",
+    "label": "Sharpshooter — bonus if YOU cast/played ≥4 target removals",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "librarian",
+    "label": "The Librarian (draw 10 cards in one turn, excl. draw step)",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "employee_month",
+    "label": "Employee of the Month (same creature killed 2 of opponents' creatures)",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "lawyer_skillz_all",
+    "label": "Lawyer Skillz — everyone 1pt if stack had ≥4 spells/abilities",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "lawyer_skillz_bonus",
+    "label": "Lawyer Skillz — bonus +1 if YOU cast all 4",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "robin_hood",
+    "label": "Robin Hood (steal or goad 5+ different creatures you don't control)",
+    "points": 1,
+    "type": "bool"
+  },
+  {
+    "id": "pen_scoop",
+    "label": "Penalty: Player scoop mid game",
+    "points": -20,
+    "type": "bool"
+  },
+  {
+    "id": "pen_win_before_t5",
+    "label": "Penalty: Win before turn 5",
+    "points": -10,
+    "type": "bool"
+  },
+  {
+    "id": "pen_long_turns",
+    "label": "Penalty: A turn >10 minutes (after 2x)",
+    "points": -1,
+    "type": "int"
+  },
+  {
+    "id": "pen_cheating",
+    "label": "Penalty: Proof of cheating",
+    "points": -30,
+    "type": "bool"
+  },
+  {
+    "id": "pen_king_making",
+    "label": "Penalty: King Making",
+    "points": -10,
+    "type": "bool"
+  }
+]

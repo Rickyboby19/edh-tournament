@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Soumettre mes points — Ronde {{ m.round_number }} — Table {{ m.id }}</h2>
+<form method="post" class="card">
+  <div class="grid">
+    {% for oid, meta in objectives.items() %}
+      <div class="field">
+        {% if meta.type == "bool" %}
+          <label class="checkbox">
+            <input type="checkbox" name="{{ oid }}"> {{ meta.label }} ({{ meta.points }} pt{% if meta.points|int != 1 %}s{% endif %})
+          </label>
+        {% else %}
+          <label>{{ meta.label }} ({{ meta.points }} pt chacun)
+            <input type="number" name="{{ oid }}" min="0" value="0">
+          </label>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  <button type="submit">Envoyer</button>
+</form>
+<p class="hint">Après envoi, un courriel de confirmation sera transmis aux autres joueurs de la table. Les points compteront au classement après validation.</p>
+{% endblock %}

@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+  <body>
+    <p>Bonjour,</p>
+    <p><strong>{{ submitter.name }}</strong> a soumis ses points pour la <strong>ronde {{ m.round_number }}</strong>, table <strong>{{ m.id }}</strong>.</p>
+    <ul>
+    {% for k, v in payload.items() %}
+      {% if v %}
+        <li>{{ k }} : {{ v }}</li>
+      {% endif %}
+    {% endfor %}
+    </ul>
+    <p>Total proposé : <strong>{{ total }} points</strong></p>
+    <p>Confirmez :</p>
+    <p>
+      <a href="{{ approve_url }}">✅ Approuver</a> |
+      <a href="{{ reject_url }}">❌ Refuser</a>
+    </p>
+    <p>Merci!</p>
+  </body>
+</html>

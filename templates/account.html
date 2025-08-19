@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Mon compte</h2>
+<div class="card">
+  <h3>Changer mon mot de passe</h3>
+  <form method="post">
+    <label>Mot de passe actuel
+      <input type="password" name="current_password" required>
+    </label>
+    <label>Nouveau mot de passe
+      <input type="password" name="new_password" minlength="6" required>
+    </label>
+    <label>Confirmer le nouveau mot de passe
+      <input type="password" name="confirm_password" minlength="6" required>
+    </label>
+    <button type="submit">Mettre à jour</button>
+  </form>
+  <p class="hint">Astuce : choisis un mot de passe plus fort que “admin”.</p>
+</div>
+{% endblock %}

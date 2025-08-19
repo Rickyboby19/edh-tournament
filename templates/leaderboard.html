@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Leaderboard</h2>
+<table class="table">
+  <thead><tr><th>#</th><th>Joueur</th><th>Points</th></tr></thead>
+  <tbody>
+  {% for row, user in leaderboard %}
+    <tr><td>{{ loop.index }}</td><td>{{ user.name }}</td><td>{{ row.points }}</td></tr>
+  {% else %}
+    <tr><td colspan="3">Aucun résultat pour le moment.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

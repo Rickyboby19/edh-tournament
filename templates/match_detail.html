@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Ronde {{ m.round_number }} — Table {{ m.id }}</h2>
+<p><strong>Joueurs:</strong>
+{% for p in players %}
+  {{ p.name }}{% if not loop.last %}, {% endif %}
+{% endfor %}
+</p>
+<p>
+  <a class="btn" href="{{ url_for('match_submit', match_id=m.id) }}">Soumettre mes points</a>
+</p>
+
+<h3>Soumissions</h3>
+<table class="table">
+  <thead><tr><th>Joueur</th><th>Points</th><th>Statut</th><th>Date</th></tr></thead>
+  <tbody>
+  {% for s in submissions %}
+    <tr>
+      <td>{{ s.user_id }}</td>
+      <td>{{ s.total_points }}</td>
+      <td>{{ s.status }}</td>
+      <td>{{ s.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4">Aucune soumission.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

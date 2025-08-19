@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Inscription</h2>
+<form method="post" class="card">
+  <label>Nom <input type="text" name="name" required></label>
+  <label>Courriel <input type="email" name="email" required></label>
+  <label>Commandant <input type="text" name="commander" required></label>
+  <label>Mot de passe <input type="password" name="password" required></label>
+  <button type="submit">Créer mon compte</button>
+</form>
+{% endblock %}
