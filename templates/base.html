@@ -1,30 +1,56 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tournoi MTG EDH</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>{% block title %}Spelltable QC – Tournoi EDH{% endblock %}</title>
+
+  <!-- Favicon (utilise une icône 32x32 si tu en as une) -->
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo-discord.png') }}">
+
+  <!-- CSS principal (+ v=6 pour casser le cache) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v=6) }}" />
+
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
+
 <header>
-  <h1>Tournoi MTG EDH</h1>
-  <nav>
-    <a href="{{ url_for('index') }}">Accueil</a>
-    <a href="{{ url_for('players') }}">Joueurs</a>
-    <a href="{{ url_for('leaderboard') }}">Leaderboard</a>
-    {% if current_user.is_authenticated %}
-      <a href="{{ url_for('dashboard') }}">Tableau de bord</a>
-	  <a href="{{ url_for('account') }}">Mon compte</a>
-      <a href="{{ url_for('logout') }}">Se déconnecter</a>
-    {% else %}
-      <a href="{{ url_for('login') }}">Connexion</a>
-      <a href="{{ url_for('register') }}">Inscription</a>
-    {% endif %}
-  </nav>
+  <div class="wrap">
+    <!-- Marque / logo + retour accueil -->
+    <a class="brand" href="{{ url_for('index') }}" aria-label="Accueil Spelltable QC">
+      <img class="brand-logo"
+           src="{{ url_for('static', filename='images/logo-discord.png') }}"
+           alt="Logo Spelltable QC" />
+      <span>Spelltable QC – Tournoi EDH</span>
+    </a>
+
+    <!-- Navigation -->
+    <nav>
+      <a href="{{ url_for('index') }}">Accueil</a>
+      <a href="{{ url_for('players') }}">Joueurs</a>
+      <a href="{{ url_for('leaderboard') }}">Leaderboard</a>
+
+      {% if current_user.is_authenticated %}
+        <a href="{{ url_for('dashboard') }}">Tableau de bord</a>
+        <a href="{{ url_for('account') }}">Mon compte</a>
+        <a href="{{ url_for('logout') }}">Se déconnecter</a>
+      {% else %}
+        <a href="{{ url_for('login') }}">Connexion</a>
+        <a href="{{ url_for('register') }}">Inscription</a>
+      {% endif %}
+
+      <!-- Bouton Discord : remplace TON_INVITE par ton lien d’invitation -->
+      <a class="btn ghost" href="https://discord.gg/https://discord.gg/whqG9Aqw2s" target="_blank" rel="noopener">
+        Discord
+      </a>
+    </nav>
+  </div>
 </header>
 
 <main>
+  <!-- Flash messages -->
   {% with messages = get_flashed_messages(with_categories=True) %}
     {% if messages %}
       {% for category, message in messages %}
@@ -32,11 +58,14 @@
       {% endfor %}
     {% endif %}
   {% endwith %}
+
   {% block content %}{% endblock %}
 </main>
 
 <footer>
-  <small>&copy; {{ 2025 }} MTG EDH</small>
+  <small>&copy; {{ 2025 }} Spelltable QC — Tournoi EDH</small>
 </footer>
+
+{% block scripts %}{% endblock %}
 </body>
 </html>

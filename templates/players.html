@@ -1,12 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Joueurs</h2>
-<table class="table">
-  <thead><tr><th>Nom</th><th>Commandant</th><th>Courriel</th></tr></thead>
-  <tbody>
-  {% for p in players %}
-    <tr><td>{{ p.name }}</td><td>{{ p.commander }}</td><td>{{ p.email }}</td></tr>
-  {% endfor %}
-  </tbody>
+<div class="card">
+<label>Rechercher
+<input type="text" id="q" placeholder="Nom, commandant ou courriel…">
+</label>
+</div>
+<table class="table" id="playersTable">
+<thead><tr><th>Nom</th><th>Commandant</th><th>Courriel</th></tr></thead>
+<tbody>
+{% for p in players %}
+<tr><td>{{ p.name }}</td><td>{{ p.commander }}</td><td>{{ p.email }}</td></tr>
+{% endfor %}
+</tbody>
 </table>
+<script>
+const q=document.getElementById('q');
+q.addEventListener('input',()=>{
+const term=q.value.toLowerCase();
+document.querySelectorAll('#playersTable tbody tr').forEach(tr=>{
+tr.style.display = tr.textContent.toLowerCase().includes(term)?'':'none';
+})
+})
+</script>
 {% endblock %}

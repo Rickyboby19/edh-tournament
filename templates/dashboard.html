@@ -2,50 +2,53 @@
 {% block content %}
 <h2>Tableau de bord</h2>
 
-<section class="grid">
-  <div class="card">
-    <h3>Joueurs inscrits ({{ players|length }})</h3>
-    <ul>
-      {% for p in players %}
-        <li>{{ p.name }} — {{ p.commander }} — {{ p.email }}</li>
-      {% endfor %}
-    </ul>
-  </div>
 
-  <div class="card">
-    <h3>Leaderboard</h3>
-    <ol>
-      {% for row, user in leaderboard %}
-        <li>{{ user.name }} — {{ row.points }} pts</li>
-      {% else %}
-        <li>Aucun point enregistré.</li>
-      {% endfor %}
-    </ol>
-  </div>
+<section class="grid cols-3">
+<div class="card">
+<h3>Joueurs inscrits ({{ players|length }})</h3>
+<ul style="margin:8px 0 0 0;padding:0;list-style:none">
+{% for p in players %}
+<li style="padding:6px 0;border-bottom:1px solid var(--line)">{{ p.name }} — {{ p.commander }} — {{ p.email }}</li>
+{% endfor %}
+</ul>
+</div>
 
-  <div class="card">
-    <h3>Mes tables</h3>
-    <ul>
-      {% for m in matches %}
-        <li><a href="{{ url_for('match_detail', match_id=m.id) }}">Ronde {{ m.round_number }} — Table {{ m.id }}</a></li>
-      {% else %}
-        <li>Vous n'êtes assigné à aucune table.</li>
-      {% endfor %}
-    </ul>
-  </div>
 
-  {% if current_user.is_admin %}
-  <div class="card">
-    <h3>Admin — Générer une ronde</h3>
-    <form method="post" action="{{ url_for('admin_new_round') }}">
-      <label>Numéro de ronde (1–5 saison, 6=Top8, 7=Finale)
-        <input type="number" name="round_number" min="1" max="7" value="1">
-      </label>
-      <button type="submit">Générer des tables (groupes de 4)</button>
-    </form>
-    <p class="hint">Crée des tables de 4 joueurs en séquence selon l'ordre d'inscription.</p>
-  </div>
-  {% endif %}
+<div class="card">
+<h3>Leaderboard</h3>
+<ol style="margin:8px 0 0 18px">
+{% for row, user in leaderboard %}
+<li>{{ user.name }} — <strong>{{ row.points }} pts</strong></li>
+{% else %}
+<li>Aucun point enregistré.</li>
+{% endfor %}
+</ol>
+</div>
+
+
+<div class="card">
+<h3>Mes tables</h3>
+<ul style="margin:8px 0 0 0;padding:0;list-style:none">
+{% for m in matches %}
+<li style="padding:6px 0;border-bottom:1px solid var(--line)"><a class="btn secondary" href="{{ url_for('match_detail', match_id=m.id) }}">Ronde {{ m.round_number }} — Table {{ m.id }}</a></li>
+{% else %}
+<li>Vous n'êtes assigné à aucune table.</li>
+{% endfor %}
+</ul>
+</div>
+
+
+{% if current_user.is_admin %}
+<div class="card" style="grid-column:1/-1">
+<h3>Admin — Générer une ronde</h3>
+<form method="post" action="{{ url_for('admin_new_round') }}" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+<label>Numéro de ronde (1–5 saison, 6=Top8, 7=Finale)
+<input type="number" name="round_number" min="1" max="7" value="1">
+</label>
+<button type="submit" class="btn">Générer des tables (x4)</button>
+<span class="hint">Crée des tables de 4 joueurs selon l'ordre d'inscription.</span>
+</form>
+</div>
+{% endif %}
 </section>
-
 {% endblock %}

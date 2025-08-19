@@ -1,23 +1,71 @@
 {% extends "base.html" %}
-{% block content %}
-<h2>Soumettre mes points — Ronde {{ m.round_number }} — Table {{ m.id }}</h2>
-<form method="post" class="card">
-  <div class="grid">
-    {% for oid, meta in objectives.items() %}
-      <div class="field">
-        {% if meta.type == "bool" %}
-          <label class="checkbox">
-            <input type="checkbox" name="{{ oid }}"> {{ meta.label }} ({{ meta.points }} pt{% if meta.points|int != 1 %}s{% endif %})
-          </label>
-        {% else %}
-          <label>{{ meta.label }} ({{ meta.points }} pt chacun)
-            <input type="number" name="{{ oid }}" min="0" value="0">
-          </label>
-        {% endif %}
-      </div>
-    {% endfor %}
-  </div>
-  <button type="submit">Envoyer</button>
+<div class="hint">{{ meta.points }} pt chacun</div>
+{% endif %}
+</div>
+{% endif %}
+{% endfor %}
+</div>
+<div>
+<h3>Pénalités</h3>
+{% for oid, meta in objectives.items() %}
+{% if oid.startswith('pen_') %}
+<div class="field">
+{% if meta.type == "bool" %}
+<label class="checkbox">
+<input type="checkbox" name="{{ oid }}" data-type="bool" data-pts="{{ meta.points }}">
+{{ meta.label }} <span class="hint">({{ meta.points }} pts)</span>
+</label>
+{% else %}
+<label>{{ meta.label }}
+<input type="number" min="0" value="0" name="{{ oid }}" data-type="int" data-pts="{{ meta.points }}">
+</label>
+<div class="hint">{{ meta.points }} pt par occurrence</div>
+{% endif %}
+</div>
+{% endif %}
+{% endfor %}
+
+
+<div class="card" style="margin-top:14px">
+<h3>Total</h3>
+<div style="font-size:28px;font-weight:900" id="totalPts">0</div>
+<p class="hint">Le total est calculé automatiquement avant l’envoi.</p>
+</div>
+</div>
+</div>
+<div style="margin-top:14px;display:flex;gap:10px">
+<button type="submit" class="btn">Envoyer</button>
+<button type="reset" class="btn ghost" id="resetBtn">Réinitialiser</button>
+</div>
 </form>
+</div>
 <p class="hint">Après envoi, un courriel de confirmation sera transmis aux autres joueurs de la table. Les points compteront au classement après validation.</p>
+
+
+<script>
+(function(){
+const form = document.getElementById('scoreForm');
+const totalEl = document.getElementById('totalPts');
+function compute(){
+let total = 0;
+const inputs = form.querySelectorAll('input[name]');
+inputs.forEach(el=>{
+const pts = Number(el.dataset.pts||0);
+const type = el.dataset.type;
+if(type === 'bool'){
+total += el.checked ? pts : 0;
+} else {
+const v = Number(el.value||0);
+// int positif (les pénalités ont des points négatifs déjà portés par data-pts)
+if(!isNaN(v) && v>0){ total += v * pts; }
+}
+});
+totalEl.textContent = total;
+}
+form.addEventListener('input', compute);
+form.addEventListener('change', compute);
+document.getElementById('resetBtn').addEventListener('click', ()=>{setTimeout(compute,0)});
+compute();
+})();
+</script>
 {% endblock %}
