@@ -4,3 +4,4 @@ Flask-Login
 SQLAlchemy
 requests
 waitress
+psycopg2-binary
