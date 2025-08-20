@@ -46,10 +46,12 @@ class TournamentPlayer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tournament_id = db.Column(db.Integer, db.ForeignKey("tournaments.id"), nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey(f"{User.__tablename__}.id"), nullable=False, index=True)
-    # Commandant saisi à l'inscription au tournoi (et non au compte)
     commander = db.Column(db.String(200), nullable=True)
+    decklist_url = db.Column(db.String(500), nullable=True)  # <-- AJOUT
     registered_at = db.Column(db.DateTime, default=datetime.utcnow)
     __table_args__ = (db.UniqueConstraint("tournament_id", "user_id", name="uq_tournament_user"),)
+
+
 
 class TournamentMatch(db.Model):
     """Mappe un Match existant à un Tournament, sans modifier la table Match."""
@@ -360,16 +362,41 @@ def tournament_register(tournament_id: int):
     if not commander:
         flash("Merci d’indiquer votre commandant pour ce tournoi.", "warning")
         return redirect(url_for("tournament_detail", tournament_id=t.id))
+    decklist_url = (request.form.get("decklist_url") or "").strip()
 
     exists = TournamentPlayer.query.filter_by(tournament_id=t.id, user_id=current_user.id).first()
     if exists:
         exists.commander = commander
+        exists.decklist_url = decklist_url  # <-- AJOUT
         db.session.commit()
-        flash("Commandant mis à jour pour ce tournoi ✅", "success")
+        flash("Commandant et decklist mis à jour pour ce tournoi ✅", "success")
     else:
-        db.session.add(TournamentPlayer(tournament_id=t.id, user_id=current_user.id, commander=commander))
+        db.session.add(TournamentPlayer(
+            tournament_id=t.id,
+            user_id=current_user.id,
+            commander=commander,
+            decklist_url=decklist_url,  # <-- AJOUT
+        ))
         db.session.commit()
         flash("Inscription au tournoi confirmée ✅", "success")
+
+    return redirect(url_for("tournament_detail", tournament_id=t.id))
+
+    tp = TournamentPlayer.query.filter_by(tournament_id=t.id, user_id=current_user.id).first()
+    if tp:
+        tp.commander = commander
+        tp.decklist_url = decklist_url or None
+    else:
+        tp = TournamentPlayer(
+            tournament_id=t.id,
+            user_id=current_user.id,
+            commander=commander,
+            decklist_url=decklist_url or None,
+        )
+        db.session.add(tp)
+
+    db.session.commit()
+    flash("Inscription/commandant mis à jour ✅", "success")
     return redirect(url_for("tournament_detail", tournament_id=t.id))
 
 @app.post("/tournaments/<int:tournament_id>/unregister")
@@ -865,6 +892,57 @@ def admin_points_update():
     db.session.commit()
     flash(f"Points de {u.name} mis à jour ({row.points}).", "success")
     return redirect(url_for("admin_home"))
+
+# ---------- Admin : gestion des joueurs (liste + suppression) ----------
+@app.get("/admin/users")
+@login_required
+@admin_required
+def admin_users():
+    users = User.query.order_by(User.name.asc()).all()
+    admin_count = User.query.filter_by(is_admin=True).count()
+    return render_template("admin_users.html", users=users, admin_count=admin_count)
+
+@app.post("/admin/users/<int:user_id>/delete")
+@login_required
+@admin_required
+def admin_user_delete(user_id: int):
+    # on ne peut pas se supprimer soi-même
+    if current_user.id == user_id:
+        flash("Tu ne peux pas te supprimer toi-même.", "warning")
+        return redirect(url_for("admin_users"))
+
+    u = db.session.get(User, user_id)
+    if not u:
+        flash("Joueur introuvable.", "warning")
+        return redirect(url_for("admin_users"))
+
+    # garde-fous admin
+    if u.is_admin:
+        force = request.form.get("force_admin") == "on"
+        admin_count = User.query.filter_by(is_admin=True).count()
+        if not force:
+            flash("Coche « forcer (si admin) » pour supprimer un admin.", "warning")
+            return redirect(url_for("admin_users"))
+        if admin_count <= 1:
+            flash("Impossible de supprimer le dernier admin.", "danger")
+            return redirect(url_for("admin_users"))
+
+    # efface proprement ses données liées
+    sub_ids = [sid for (sid,) in db.session.query(Submission.id).filter_by(user_id=user_id).all()]
+    if sub_ids:
+        SubmissionApproval.query.filter(SubmissionApproval.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+    SubmissionApproval.query.filter_by(approver_id=user_id).delete(synchronize_session=False)
+    Submission.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    MatchPlayer.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    TournamentPlayer.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    Leaderboard.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+
+    db.session.delete(u)
+    db.session.commit()
+    flash("Joueur supprimé.", "success")
+    return redirect(url_for("admin_users"))
+
+
 
 # -----------------------------------------------------------------------------
 # Admin: reset

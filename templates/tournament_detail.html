@@ -1,141 +1,240 @@
 {% extends "base.html" %}
-{% block title %}{{ t.name }} — Spelltable QC{% endblock %}
+{% block title %}{{ t.name }} — Tournoi{% endblock %}
 
 {% block content %}
-<section class="wrap">
-  <h1>{{ t.name }}</h1>
 
-  <div class="card" style="margin-bottom:14px;">
-    <div style="display:flex; gap:18px; flex-wrap:wrap; align-items:center;">
-      <div>
-        Statut :
-        {% if t.status == 'pending' %}
-          <strong>En préparation</strong>
-        {% elif t.status == 'started' %}
-          <strong>En cours</strong>
+<h2 style="margin-bottom:6px">{{ t.name }}</h2>
+<p class="hint" style="margin-top:0">Statut : <strong>{{ t.status }}</strong> — Ronde : <strong>{{ t.current_round }}</strong> / {{ t.rounds_planned }}</p>
+
+<div class="grid cols-2" style="gap:16px">
+
+  <!-- Colonne gauche : inscription + inscrits -->
+  <section>
+    {% if t.status == "pending" %}
+      <div class="card">
+        <h3 style="margin-top:0">Participer au tournoi</h3>
+
+        {# Trouver mon enregistrement (si déjà inscrit) #}
+        {% set my_reg = None %}
+        {% for tp, u in registered %}
+          {% if current_user.is_authenticated and u.id == current_user.id %}
+            {% set my_reg = tp %}
+          {% endif %}
+        {% endfor %}
+
+        <form method="post" action="{{ url_for('tournament_register', tournament_id=t.id) }}">
+          <label>Commandant (nom exact)
+            <input type="text" name="commander" id="commanderInput"
+                   value="{{ (my_reg.commander if my_reg else '') or '' }}"
+                   placeholder="Ex: Atraxa, Grand Unifier" required list="commanderSuggestions">
+          </label>
+          <datalist id="commanderSuggestions"></datalist>
+          <div class="hint">Saisie assistée via Scryfall. L’image est prévisualisée ci-dessous.</div>
+
+          <label>Decklist (URL) — <span class="hint">visible uniquement par les administrateurs</span>
+            <input type="url" name="decklist_url"
+                   value="{{ (my_reg.decklist_url if my_reg else '') or '' }}"
+                   placeholder="https://www.moxfield.com/decks/… ou https://www.archidekt.com/decks/…">
+          </label>
+
+          <div style="display:flex;align-items:center;gap:10px;margin:8px 0">
+            <img id="commanderPreview" src="" alt="Prévisualisation du commandant" style="width:180px;max-width:45%;border-radius:10px;display:none" referrerpolicy="no-referrer">
+            <a id="gathererLink" href="#" target="_blank" rel="noopener" class="btn ghost" style="display:none">Voir sur Gatherer</a>
+          </div>
+
+          <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap">
+            <button type="submit" class="btn">
+              {% if my_reg %}Mettre à jour{% else %}S’inscrire{% endif %}
+            </button>
+            {% if my_reg %}
+              <button type="submit"
+                      class="btn ghost"
+                      formmethod="post"
+                      formaction="{{ url_for('tournament_unregister', tournament_id=t.id) }}"
+                      onclick="return confirm('Se désinscrire de ce tournoi ?')">
+                Se désinscrire
+              </button>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    {% else %}
+      <div class="card">
+        <h3 style="margin:0">Inscriptions fermées</h3>
+        <p class="hint" style="margin-top:6px">Le tournoi a démarré. Tu ne peux plus modifier ton inscription.</p>
+      </div>
+    {% endif %}
+
+    <div class="card" style="margin-top:12px">
+      <h3 style="margin-top:0">Joueurs inscrits ({{ registered|length }})</h3>
+      <ul class="players" style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">
+        {% for tp, u in registered %}
+          <li class="row" style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid #eee;border-radius:12px">
+            {% if tp.commander %}
+              <img
+                src="https://api.scryfall.com/cards/named?format=image&version=small&exact={{ tp.commander | urlencode }}"
+                alt="Commander de {{ u.name }}"
+                style="width:52px;height:52px;object-fit:cover;border-radius:8px;flex:0 0 auto"
+                referrerpolicy="no-referrer"
+              >
+            {% else %}
+              <div style="width:52px;height:52px;background:#f3f3f3;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#888;font-size:12px">N/A</div>
+            {% endif %}
+
+            <div style="min-width:0">
+              <div><strong>{{ u.name }}</strong></div>
+              <div class="hint" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                {{ tp.commander or "Commander non renseigné" }}
+              </div>
+            </div>
+
+            <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+              {% if current_user.is_authenticated and current_user.is_admin and tp.decklist_url %}
+                <a href="{{ tp.decklist_url }}" target="_blank" rel="noopener" class="badge">Decklist</a>
+              {% endif %}
+            </div>
+          </li>
         {% else %}
-          <strong>Terminé</strong>
+          <li>Aucun joueur inscrit.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+  <!-- Colonne droite : tables de la ronde courante + contrôles admin -->
+  <section>
+    <div class="card">
+      <h3 style="margin-top:0">Tables — Ronde {{ t.current_round }}</h3>
+
+      {% if current_tables %}
+        <div class="grid cols-2" style="gap:10px">
+          {% for row in current_tables %}
+            <div class="subcard" style="border:1px solid #eee;border-radius:12px;padding:10px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <strong>Table {{ row.match.id }}</strong>
+                <span class="hint">match #{{ row.match.id }}</span>
+              </div>
+              <ul style="margin:0 0 8px 18px">
+                {% for p in row.players %}
+                  <li>
+                    {{ p.name }}
+                    {% if current_user.is_authenticated and p.id == current_user.id %}
+                      <span class="badge badge-ok">moi</span>
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+
+              {% set player_ids = row.players | map(attribute='id') | list %}
+              {% if current_user.is_authenticated and (current_user.id in player_ids) %}
+                <a href="{{ url_for('match_submit', match_id=row.match.id) }}" class="btn">Soumettre mes points</a>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="hint">Aucune table générée pour cette ronde.</p>
+      {% endif %}
+    </div>
+
+    {% if current_user.is_authenticated and current_user.is_admin %}
+      <div class="card" style="margin-top:12px">
+        <h3 style="margin-top:0">Contrôles administrateur</h3>
+
+        {% if t.status == "pending" %}
+          <form method="post" action="{{ url_for('admin_tournament_start', tournament_id=t.id) }}" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+            <label>Nombre de rondes (max 5)
+              <input type="number" name="max_rounds" value="{{ t.rounds_planned or 5 }}" min="1" max="5">
+            </label>
+            <button type="submit" class="btn" onclick="return confirm('Démarrer le tournoi et générer toutes les rondes ?')">Démarrer le tournoi</button>
+          </form>
+        {% elif t.status == "started" %}
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <form method="post" action="{{ url_for('admin_tournament_round_prev', tournament_id=t.id) }}">
+              <button class="btn ghost" {% if t.current_round <= 1 %}disabled{% endif %}>◀ Ronde précédente</button>
+            </form>
+            <form method="post" action="{{ url_for('admin_tournament_round_next', tournament_id=t.id) }}">
+              <button class="btn" {% if t.current_round >= t.rounds_planned %}disabled{% endif %}>Ronde suivante ▶</button>
+            </form>
+          </div>
+        {% else %}
+          <p class="hint">Tournoi terminé.</p>
         {% endif %}
       </div>
-      <div>Rondes : <strong>{{ t.current_round }}/{{ t.rounds_planned }}</strong></div>
-      <div>Créé : <strong>{{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at }}</strong></div>
-      <div>Démarré : <strong>{{ t.started_at.strftime('%Y-%m-%d %H:%M') if t.started_at else '—' }}</strong></div>
-    </div>
-  </div>
+    {% endif %}
+  </section>
 
-  <!-- Bloc inscription / mise à jour commandant (pour ce tournoi) -->
-  {% if current_user.is_authenticated and t.status == 'pending' %}
-    {% set ns = namespace(tp=None) %}
-    {% for tp, u in registered %}
-      {% if u.id == current_user.id %}
-        {% set ns.tp = tp %}
-      {% endif %}
-    {% endfor %}
+</div>
 
-    <div class="card" style="margin-bottom:14px;">
-      <h3>Participation</h3>
-      {% if ns.tp %}
-        <p>Tu es inscrit à ce tournoi.</p>
-        <form method="post" action="{{ url_for('tournament_register', tournament_id=t.id) }}" style="display:flex; gap:10px; align-items:end;">
-          <label>Commandant
-            <input type="text" name="commander" value="{{ ns.tp.commander or '' }}" required>
-          </label>
-          <button class="btn">Mettre à jour</button>
-        </form>
-        <form method="post" action="{{ url_for('tournament_unregister', tournament_id=t.id) }}" style="margin-top:10px;">
-          <button class="btn ghost" onclick="return confirm('Se désinscrire de ce tournoi ?')">Se désinscrire</button>
-        </form>
-      {% else %}
-        <p>Inscris-toi et indique ton commandant pour ce tournoi.</p>
-        <form method="post" action="{{ url_for('tournament_register', tournament_id=t.id) }}" style="display:flex; gap:10px; align-items:end;">
-          <label>Commandant
-            <input type="text" name="commander" placeholder="Nom du commandant" required>
-          </label>
-          <button class="btn">S’inscrire</button>
-        </form>
-      {% endif %}
-    </div>
-  {% endif %}
-
-  <!-- Outils Admin -->
-  {% if current_user.is_authenticated and current_user.is_admin %}
-    <div class="card" style="margin-bottom:14px;">
-      <h3>Administration du tournoi</h3>
-
-      {% if t.status == 'pending' %}
-        <form method="post" action="{{ url_for('admin_tournament_start', tournament_id=t.id) }}"
-              style="display:flex; gap:10px; align-items:end; margin-bottom:10px;">
-          <label>Nombre de rondes (max 5)
-            <input type="number" name="max_rounds" value="{{ t.rounds_planned }}" min="1" max="5">
-          </label>
-          <button class="btn">🔔 Démarrer le tournoi</button>
-        </form>
-      {% elif t.status == 'started' %}
-        <div style="display:flex; gap:10px;">
-          <form method="post" action="{{ url_for('admin_tournament_round_prev', tournament_id=t.id) }}">
-            <button class="btn ghost" {% if t.current_round <= 1 %}disabled{% endif %}>← Ronde précédente</button>
-          </form>
-          <form method="post" action="{{ url_for('admin_tournament_round_next', tournament_id=t.id) }}">
-            <button class="btn" {% if t.current_round >= t.rounds_planned %}disabled{% endif %}>Ronde suivante →</button>
-          </form>
-        </div>
-      {% endif %}
-    </div>
-  {% endif %}
-
-  <!-- Inscrits -->
-  <div class="card" style="margin-bottom:14px;">
-    <h3>Joueurs inscrits</h3>
-    <table class="table">
-      <thead>
-        <tr><th>#</th><th>Joueur</th><th>Commandant (pour ce tournoi)</th></tr>
-      </thead>
-      <tbody>
-        {% for tp, u in registered %}
-          <tr>
-            <td>{{ loop.index }}</td>
-            <td>{{ u.name }}</td>
-            <td>{{ tp.commander or '—' }}</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="3">Aucun joueur inscrit pour l’instant.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Tables de la ronde courante -->
-  <div class="card">
-    <h3>Tables — Ronde {{ t.current_round }}</h3>
-    <table class="table">
-      <thead>
-        <tr><th>Table #</th><th>Joueurs</th><th style="width:160px;"></th></tr>
-      </thead>
-      <tbody>
-        {% for row in current_tables %}
-          <tr>
-            <td>{{ row.match.id }}</td>
-            <td>
-              {% for p in row.players %}
-                <div>{{ p.name }}</div>
-              {% endfor %}
-            </td>
-            <td>
-              {% if current_user.is_authenticated %}
-                {% set mine = row.players | selectattr('id','equalto',current_user.id) | list %}
-                {% if mine|length > 0 %}
-                  <a class="btn" href="{{ url_for('match_detail', match_id=row.match.id) }}">Ma table</a>
-                {% else %}
-                  <a class="btn ghost" href="{{ url_for('match_detail', match_id=row.match.id) }}">Détails</a>
-                {% endif %}
-              {% endif %}
-            </td>
-          </tr>
-        {% else %}
-          <tr><td colspan="3">Aucune table pour cette ronde.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</section>
 {% endblock %}
+
+{% block scripts %}
+<script>
+  // --- Auto-complétion Scryfall + preview image + lien Gatherer ---
+  const input = document.getElementById('commanderInput');
+  const listEl = document.getElementById('commanderSuggestions');
+  const img = document.getElementById('commanderPreview');
+  const gatherer = document.getElementById('gathererLink');
+
+  async function updateSuggestions(q) {
+    try {
+      if (!q || q.length < 2) { listEl.innerHTML = ""; return; }
+      const res = await fetch('https://api.scryfall.com/cards/autocomplete?q=' + encodeURIComponent(q));
+      const data = await res.json();
+      const names = data.data || [];
+      listEl.innerHTML = names.slice(0, 20).map(n => `<option value="${n}"></option>`).join('');
+    } catch(_) {
+      // silencieux
+    }
+  }
+
+  async function updatePreview(name) {
+    try {
+      if (!name) { img.style.display = 'none'; gatherer.style.display = 'none'; return; }
+      const res = await fetch('https://api.scryfall.com/cards/named?fuzzy=' + encodeURIComponent(name));
+      if (!res.ok) throw new Error('not ok');
+      const card = await res.json();
+
+      // image (face simple ou double)
+      let url = null;
+      if (card.image_uris && card.image_uris.normal) url = card.image_uris.normal;
+      else if (card.card_faces && card.card_faces.length && card.card_faces[0].image_uris) {
+        url = card.card_faces[0].image_uris.normal || card.card_faces[0].image_uris.large;
+      }
+      if (url) {
+        img.src = url;
+        img.style.display = '';
+      } else {
+        img.style.display = 'none';
+      }
+
+      // lien Gatherer (basé sur le nom exact renvoyé par Scryfall)
+      const exact = card.name || name;
+      gatherer.href = 'https://gatherer.wizards.com/Pages/Search/Default.aspx?name=%2b%5b' + encodeURIComponent(exact) + '%5d';
+      gatherer.style.display = '';
+    } catch (e) {
+      img.style.display = 'none';
+      if (gatherer) gatherer.style.display = 'none';
+    }
+  }
+
+  let tId = null;
+  input && input.addEventListener('input', (e) => {
+    const v = e.target.value.trim();
+    if (tId) clearTimeout(tId);
+    tId = setTimeout(() => {
+      updateSuggestions(v);
+      updatePreview(v);
+    }, 200);
+  });
+
+  // initialiser si valeur déjà présente
+  if (input && input.value.trim()) {
+    updateSuggestions(input.value.trim());
+    updatePreview(input.value.trim());
+  }
+</script>
+{% endblock %}
+
+
+

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Gestion des joueurs — Admin{% endblock %}
+
+{% block content %}
+<h2>Gestion des joueurs</h2>
+
+<div class="grid cols-3" style="align-items:end; gap:12px; margin-bottom:12px;">
+  <div>
+    <label>Recherche
+      <input id="userSearch" type="text" placeholder="Filtrer par nom ou email…" style="width:100%">
+    </label>
+  </div>
+  <div>
+    <span class="badge">Total: {{ users|length }}</span>
+    <span class="badge">Admins: {{ admin_count }}</span>
+  </div>
+  <div style="text-align:right;">
+    <a class="btn ghost" href="{{ url_for('admin_home') }}">← Retour admin</a>
+  </div>
+</div>
+
+<table class="table" id="usersTable">
+  <thead>
+    <tr>
+      <th style="width:70px">ID</th>
+      <th>Nom</th>
+      <th>Email</th>
+      <th style="width:240px">Action</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for u in users %}
+    <tr>
+      <td>{{ u.id }}</td>
+      <td>
+        {{ u.name }}
+        {% if u.is_admin %}
+          <span class="badge badge-ok">admin</span>
+        {% endif %}
+        {% if current_user.id == u.id %}
+          <span class="badge">toi</span>
+        {% endif %}
+      </td>
+      <td>{{ u.email }}</td>
+      <td>
+        <form method="post"
+              action="{{ url_for('admin_user_delete', user_id=u.id) }}"
+              onsubmit="return confirm('Supprimer {{ u.name }} ? Cette action retire ses soumissions, approbations, inscriptions et scores.');"
+              style="display:flex; gap:10px; align-items:center;">
+
+          {% if u.is_admin %}
+            <label class="checkbox" title="Obligatoire pour supprimer un admin">
+              <input type="checkbox" name="force_admin"> forcer (si admin)
+            </label>
+          {% endif %}
+
+          <button class="btn"
+                  type="submit"
+                  {% if current_user.id == u.id %}disabled title="Tu ne peux pas te supprimer toi-même."{% endif %}>
+            Supprimer
+          </button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4">Aucun joueur.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<script>
+  // Filtre rapide côté client sur nom/email
+  const input = document.getElementById('userSearch');
+  const table = document.getElementById('usersTable').querySelector('tbody');
+  input.addEventListener('input', () => {
+    const q = input.value.toLowerCase().trim();
+    for (const tr of table.rows) {
+      const name = (tr.cells[1]?.innerText || '').toLowerCase();
+      const email = (tr.cells[2]?.innerText || '').toLowerCase();
+      tr.style.display = (name.includes(q) || email.includes(q)) ? '' : 'none';
+    }
+  });
+</script>
+{% endblock %}
