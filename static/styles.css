@@ -139,4 +139,26 @@ select, textarea {
   background: #0b0f1b;
   color: #e8eefc;
 }
+/* === Header / Logo === */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #fff;
+  text-decoration: none;
+}
 
+.brand-logo {
+  height: 80px;   /* taille du logo */
+  width: auto;    /* conserve les proportions */
+  border-radius: 6px; /* arrondi léger */
+}
+
+.details-row .field {
+  background: #0c1220;
+  border: 1px dashed #223053;
+  border-radius: 10px;
+  padding: 10px 12px;
+}

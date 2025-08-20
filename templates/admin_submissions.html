@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Admin — Soumissions de points{% endblock %}
+{% block content %}
+
+<h2>Soumissions de points</h2>
+
+<!-- Filtre par joueur -->
+<form method="get" action="{{ url_for('admin_submissions') }}" class="card" style="margin-bottom:16px">
+  <div class="grid cols-3" style="align-items:end">
+    <div>
+      <label>Joueur</label>
+      <select name="player_id">
+        <option value="">— Tous les joueurs —</option>
+        {% for p in players %}
+          <option value="{{ p.id }}" {% if selected and selected == p.id %}selected{% endif %}>{{ p.name }} — {{ p.email }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>&nbsp;</label>
+      <button class="btn" type="submit">Filtrer</button>
+    </div>
+    <div style="text-align:right">
+      <label>&nbsp;</label>
+      <a class="btn ghost" href="{{ url_for('admin_home') }}">Retour Admin</a>
+    </div>
+  </div>
+</form>
+
+<!-- Tableau des soumissions -->
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Ronde</th>
+        <th>Table</th>
+        <th>Joueur</th>
+        <th>Points</th>
+        <th>Statut</th>
+        <th>Détails</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s, u, m in submissions %}
+        <tr>
+          <td>
+            {% if s.created_at %}
+              {{ s.created_at.strftime("%Y-%m-%d %H:%M") }}
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ m.round_number }}</td>
+          <td>#{{ m.id }}</td>
+          <td>{{ u.name }} <span class="hint">— {{ u.commander }}</span></td>
+          <td><strong>{{ s.total_points }}</strong></td>
+          <td>
+            {% set st = s.status|default('pending') %}
+            <span class="badge {{ st }}">{{ st|capitalize }}</span>
+          </td>
+          <td>
+            <button class="btn ghost" type="button" data-toggle="details" data-id="sub-{{ s.id }}">Voir</button>
+          </td>
+        </tr>
+        <tr id="sub-{{ s.id }}" class="details-row" style="display:none">
+          <td colspan="7">
+            <div class="field">
+              <h4 style="margin:0 0 8px">Objectifs enregistrés</h4>
+              {% set payload = s.payload or {} %}
+              {% set any_item = false %}
+              <ul style="margin:0; padding-left:18px">
+                {% for oid, val in payload.items() %}
+                  {% set meta = objectives.get(oid) %}
+                  {% if meta %}
+                    {% if (meta.type == 'bool' and val) or (meta.type == 'int' and val|int > 0) %}
+                      {% set _ = namespace() %}
+                      {% set any_item = true %}
+                      <li>
+                        {{ meta.label }}
+                        {% if meta.type == 'int' %} × {{ val|int }}{% endif %}
+                        <span class="hint">({{ meta.points }} pt{% if meta.points|int not in [-1,1] %}s{% endif %})</span>
+                      </li>
+                    {% endif %}
+                  {% endif %}
+                {% endfor %}
+              </ul>
+              {% if not any_item %}
+                <div class="hint">Aucun objectif/pénalité déclaré dans cette soumission.</div>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7">Aucune soumission trouvée.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+  // Toggle des lignes "détails"
+  document.querySelectorAll('button[data-toggle="details"]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-id');
+      const row = document.getElementById(id);
+      if(!row) return;
+      row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
+    });
+  });
+</script>
+
+{% endblock %}
