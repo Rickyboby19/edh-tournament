@@ -30,6 +30,7 @@
     <nav>
       <a href="{{ url_for('index') }}">Accueil</a>
       <a href="{{ url_for('players') }}">Joueurs</a>
+	  <a href="{{ url_for('tournaments_list') }}">Tournois</a>
 
       {# Lien "Règlements" protégé : s'affiche seulement si l'endpoint existe #}
       {% if has_endpoint('reglements') %}
@@ -72,6 +73,8 @@
 
   {% block content %}{% endblock %}
 </main>
+
+
 
 <footer>
   <small>&copy; {{ 2025 }} Spelltable QC — Tournoi EDH</small>

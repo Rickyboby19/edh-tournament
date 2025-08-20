@@ -1,11 +1,32 @@
 {% extends "base.html" %}
+{% block title %}Inscription{% endblock %}
+
 {% block content %}
-<h2>Inscription</h2>
-<form method="post" class="card">
-  <label>Nom <input type="text" name="name" required></label>
-  <label>Courriel <input type="email" name="email" required></label>
-  <label>Commandant <input type="text" name="commander" required></label>
-  <label>Mot de passe <input type="password" name="password" required></label>
-  <button type="submit">Créer mon compte</button>
+<h2>Créer un compte</h2>
+
+<form method="post" class="card" style="max-width:520px">
+  <label>Nom
+    <input type="text" name="name" placeholder="Votre nom" required>
+  </label>
+
+  <label>Courriel
+    <input type="email" name="email" placeholder="vous@example.com" required>
+  </label>
+
+  <label>Mot de passe
+    <input type="password" name="password" placeholder="••••••••" minlength="6" required>
+  </label>
+
+  <button type="submit" class="btn">S'inscrire</button>
+
+  <p class="hint" style="margin-top:8px">
+    Le commandant est maintenant choisi <strong>à l'inscription à un tournoi</strong>
+    (onglet <em>Tournois</em>), pas lors de la création du compte.
+  </p>
+
+  <p style="margin-top:8px">
+    Déjà un compte ? <a href="{{ url_for('login') }}">Se connecter</a>
+  </p>
 </form>
 {% endblock %}
+

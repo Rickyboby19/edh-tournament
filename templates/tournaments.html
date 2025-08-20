@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Tournois — Spelltable QC{% endblock %}
+
+{% block content %}
+<section class="wrap">
+  <h1>Tournois</h1>
+
+  <div class="card" style="margin-bottom:14px;">
+    <p class="hint">Liste des tournois “en cours de préparation”, “en cours” et “terminés”.</p>
+  </div>
+
+  <div class="card">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nom</th>
+          <th>Statut</th>
+          <th>Rondes</th>
+          <th>Créé</th>
+          <th>Démarré</th>
+          <th style="width:260px;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tournaments %}
+          <tr>
+            <td><a href="{{ url_for('tournament_detail', tournament_id=t.id) }}">{{ t.name }}</a></td>
+            <td>
+              {% if t.status == 'pending' %}
+                <span class="badge">en préparation</span>
+              {% elif t.status == 'started' %}
+                <span class="badge badge-ok">en cours</span>
+              {% else %}
+                <span class="badge">terminé</span>
+              {% endif %}
+            </td>
+            <td>{{ t.current_round }}/{{ t.rounds_planned }}</td>
+            <td>{{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at }}</td>
+            <td>{{ t.started_at.strftime('%Y-%m-%d %H:%M') if t.started_at else '—' }}</td>
+            <td>
+              <a class="btn" href="{{ url_for('tournament_detail', tournament_id=t.id) }}">Voir</a>
+
+              {% if current_user.is_authenticated %}
+                {% if t.status == 'pending' %}
+                  {% if is_registered_for(t.id, current_user.id) %}
+                    <span class="badge badge-ok" style="margin-left:8px;">Inscrit ✅</span>
+                  {% else %}
+                    <!-- Inscription rapide (commandant requis) -->
+                    <form method="post"
+                          action="{{ url_for('tournament_register', tournament_id=t.id) }}"
+                          style="display:inline-flex; gap:6px; align-items:center; margin-left:8px;">
+                      <input type="text" name="commander" placeholder="Commandant" required
+                             style="width:150px;">
+                      <button class="btn">S’inscrire</button>
+                    </form>
+                  {% endif %}
+                {% else %}
+                  {% if is_registered_for(t.id, current_user.id) %}
+                    <span class="badge badge-ok" style="margin-left:8px;">Participant</span>
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6">Aucun tournoi pour le moment.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

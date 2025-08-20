@@ -8,7 +8,6 @@
   <a class="btn ghost" href="{{ url_for('admin_submissions') }}">Voir toutes les soumissions de points</a>
 </p>
 
-
 <section class="grid cols-3">
 
   <!-- Statistiques -->
@@ -29,7 +28,7 @@
       <label>Joueur
         <select name="user_id">
           {% for p in players %}
-            <option value="{{ p.id }}">{{ p.name }} — {{ p.commander }} ({{ p.email }})</option>
+            <option value="{{ p.id }}">{{ p.name }}{% if p.commander %} — {{ p.commander }}{% endif %} ({{ p.email }})</option>
           {% endfor %}
         </select>
       </label>
@@ -46,15 +45,15 @@
     </form>
   </div>
 
-  <!-- Reset tournoi -->
+  <!-- Réinitialiser -->
   <div class="card">
-    <h3>Réinitialiser le tournoi</h3>
+    <h3>Réinitialiser</h3>
     <form method="post" action="{{ url_for('admin_reset') }}">
       <label>Étendue du reset
         <select name="scope">
           <option value="scores">Scores seulement (Leaderboard)</option>
           <option value="matches">Matches + soumissions</option>
-          <option value="all">Tout (matches, soumissions, scores)</option>
+          <option value="all">Tout (matches, soumissions, scores, tournois)</option>
         </select>
       </label>
       <label class="checkbox">
@@ -64,22 +63,69 @@
       <button type="submit" class="btn" onclick="return confirm('Confirmer la réinitialisation ?')">Réinitialiser</button>
     </form>
     <p class="hint" style="margin-top:8px">
-      Supprime d’abord approbations/soumissions, puis liaison joueurs et matches.  
-      En mode “Tout”, supprime aussi le Leaderboard.  
+      Supprime d’abord approbations/soumissions, puis liaisons joueurs↔matches.  
+      En mode “Tout”, supprime aussi le Leaderboard et les tournois (un tournoi “pending” sera recréé).  
       Option : conserver les joueurs.
     </p>
   </div>
 
-  <!-- Générer des tables (rondes) -->
+  <!-- Gestion des tournois -->
   <div class="card" style="grid-column:1 / -1">
-    <h3>Générer des tables par ronde</h3>
-    <form method="post" action="{{ url_for('admin_new_round') }}" style="display:flex; gap:10px; align-items:flex-end;">
-      <label>Ronde #
-        <input type="number" name="round_number" value="1" min="1" />
+    <h3>Tournois</h3>
+
+    <!-- Créer un tournoi -->
+    <form method="post" action="{{ url_for('admin_tournament_create') }}"
+          style="display:flex; gap:10px; align-items:flex-end; margin-bottom:14px;">
+      <label>Nom
+        <input type="text" name="name" placeholder="Nom du tournoi" value="Tournoi EDH">
       </label>
-      <button type="submit" class="btn">Créer/Remplacer les tables</button>
+      <label>Rondes prévues (1–5)
+        <input type="number" name="rounds_planned" min="1" max="5" value="5">
+      </label>
+      <button type="submit" class="btn">Créer le tournoi</button>
     </form>
-    <p class="hint" style="margin-top:8px">Crée des pods de 4 joueurs selon l’ordre d’inscription.</p>
+
+    {% if tournaments %}
+      {% for t in tournaments %}
+        <div class="subcard" style="padding:10px; border:1px solid #eee; border-radius:12px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div>
+              <strong>{{ t.name }}</strong>
+              <span class="badge" style="margin-left:6px">{{ t.status }}</span>
+              <span class="badge badge-ok" style="margin-left:6px">Ronde {{ t.current_round }}/{{ t.rounds_planned }}</span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <a class="btn ghost" href="{{ url_for('tournament_detail', tournament_id=t.id) }}">Voir</a>
+            </div>
+          </div>
+
+          {% if t.status == 'pending' %}
+            <!-- Démarrer ce tournoi -->
+            <form method="post"
+                  action="{{ url_for('admin_tournament_start', tournament_id=t.id) }}"
+                  style="display:flex; gap:10px; align-items:flex-end; margin-top:10px;">
+              <label>Nombre de rondes (max 5)
+                <input type="number" name="max_rounds" min="1" max="5" value="{{ t.rounds_planned or 5 }}">
+              </label>
+              <button type="submit" class="btn">Démarrer ce tournoi</button>
+            </form>
+          {% elif t.status == 'started' %}
+            <!-- Contrôler la ronde -->
+            <div style="display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap;">
+              <form method="post" action="{{ url_for('admin_tournament_round_prev', tournament_id=t.id) }}">
+                <button type="submit" class="btn ghost">◀ Ronde précédente</button>
+              </form>
+              <span class="badge badge-ok">Ronde {{ t.current_round }} / {{ t.rounds_planned }}</span>
+              <form method="post" action="{{ url_for('admin_tournament_round_next', tournament_id=t.id) }}">
+                <button type="submit" class="btn">Ronde suivante ▶</button>
+              </form>
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="hint">Aucun tournoi pour le moment. Crée-en un ci-dessus.</p>
+    {% endif %}
   </div>
 
   <!-- Leaderboard aperçu -->
@@ -91,7 +137,7 @@
         {% for row, user in leaderboard %}
           <tr>
             <td>{{ loop.index }}</td>
-            <td>{{ user.name }} — <span class="hint">{{ user.commander }}</span></td>
+            <td>{{ user.name }}{% if user.commander %} — <span class="hint">{{ user.commander }}</span>{% endif %}</td>
             <td><strong>{{ row.points }}</strong></td>
           </tr>
         {% else %}
@@ -100,77 +146,104 @@
       </tbody>
     </table>
   </div>
+<div class="card" style="grid-column:1 / -1">
+  <h3>Gestion des rôles (Admin)</h3>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Joueur</th>
+        <th>Courriel</th>
+        <th>Rôle</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in players %}
+        <tr>
+          <td>{{ p.name }}</td>
+          <td>{{ p.email }}</td>
+          <td>
+            {% if p.is_admin %}
+              <span class="badge badge-ok">Admin</span>
+            {% else %}
+              <span class="badge">Joueur</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if not p.is_admin %}
+              <form method="post" action="{{ url_for('admin_user_admin', user_id=p.id) }}" style="display:inline">
+                <input type="hidden" name="action" value="grant">
+                <button type="submit" class="btn">Rendre admin</button>
+              </form>
+            {% else %}
+              <form method="post" action="{{ url_for('admin_user_admin', user_id=p.id) }}" style="display:inline"
+                    onsubmit="return confirm('Retirer les droits admin à {{ p.name }} ?')">
+                <input type="hidden" name="action" value="revoke">
+                <button type="submit" class="btn ghost">Retirer admin</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="hint">Sécurité : on empêche de retirer le <strong>dernier</strong> administrateur.</p>
+</div>
 
-  <!-- Envoi de courriels -->
+  <!-- Envoi de courriels (optionnel, seulement si la route existe) -->
   <div class="card" style="grid-column:1 / -1">
     <h3>Envoyer un courriel</h3>
-    <form method="post" action="{{ url_for('admin_email') }}">
-      <div class="grid cols-3">
-        <div>
-          <label>Destinataires</label>
-          <label class="checkbox"><input type="radio" name="recipients_mode" value="selected" checked> Sélectionnés</label>
-          <label class="checkbox"><input type="radio" name="recipients_mode" value="all"> Tous les joueurs</label>
+    {% if has_endpoint('admin_email') %}
+      <form method="post" action="{{ url_for('admin_email') }}">
+        <div class="grid cols-3">
+          <div>
+            <label>Destinataires</label>
+            <label class="checkbox"><input type="radio" name="recipients_mode" value="selected" checked> Sélectionnés</label>
+            <label class="checkbox"><input type="radio" name="recipients_mode" value="all"> Tous les joueurs</label>
 
-          <div id="recipientsSelect" style="margin-top:8px">
-            <select name="player_ids" multiple size="8" style="width:100%">
-              {% for p in players %}
-                <option value="{{ p.id }}">{{ p.name }} — {{ p.email }}</option>
-              {% endfor %}
-            </select>
-            <div class="hint">Maintiens Ctrl (ou Cmd) pour multisélection.</div>
+            <div id="recipientsSelect" style="margin-top:8px">
+              <select name="player_ids" multiple size="8" style="width:100%">
+                {% for p in players %}
+                  <option value="{{ p.id }}">{{ p.name }} — {{ p.email }}</option>
+                {% endfor %}
+              </select>
+              <div class="hint">Maintiens Ctrl (ou Cmd) pour multisélection.</div>
+            </div>
+          </div>
+
+          <div>
+            <label>Sujet
+              <input type="text" name="subject" placeholder="Sujet du message" required>
+            </label>
+            <label>Message
+              <textarea name="body" rows="7" placeholder="Ton message ici…" style="width:100%"></textarea>
+            </label>
+          </div>
+
+          <div style="display:flex;align-items:end;">
+            <button type="submit" class="btn">Envoyer</button>
           </div>
         </div>
-
-        <div>
-          <label>Sujet
-            <input type="text" name="subject" placeholder="Sujet du message" required>
-          </label>
-          <label>Message
-            <textarea name="body" rows="7" placeholder="Ton message ici…" style="width:100%"></textarea>
-          </label>
-        </div>
-
-        <div style="display:flex;align-items:end;">
-          <button type="submit" class="btn">Envoyer</button>
-        </div>
-      </div>
-    </form>
+      </form>
+    {% else %}
+      <p class="hint">
+        La route <code>admin_email</code> n’est pas définie dans l’application.  
+        Tu peux l’ajouter plus tard ; le formulaire s’affichera automatiquement.
+      </p>
+    {% endif %}
   </div>
 
 </section>
-
-<!-- DÉBUT DU TOURNOI + PHASES FINALES -->
-<div class="card" style="grid-column:1 / -1">
-  <h3>Phases du tournoi</h3>
-
-  <form method="post" action="{{ url_for('admin_tournament_start') }}" style="display:flex; gap:10px; align-items:flex-end; margin-bottom:10px;">
-    <label>Nombre de rondes (max 5)
-      <input type="number" name="max_rounds" value="5" min="1" max="5" />
-    </label>
-    <button type="submit" class="btn">🔔 Début du tournoi</button>
-  </form>
-
-  <form method="post" action="{{ url_for('admin_tournament_semis') }}" style="display:flex; gap:10px; align-items:flex-end; margin-bottom:10px;">
-    <button type="submit" class="btn">🏁 Générer les demi-finales (Top 8)</button>
-  </form>
-
-  <form method="post" action="{{ url_for('admin_tournament_final') }}" style="display:flex; gap:10px; align-items:flex-end;">
-    <button type="submit" class="btn">👑 Générer la finale (Top 4)</button>
-  </form>
-
-  <p class="hint" style="margin-top:8px">
-    Les rondes de saison utilisent une heuristique qui <em>maximise les rencontres uniques</em>.<br>
-    Théoriquement, en 5 rondes, chaque joueur peut rencontrer au plus 15 adversaires uniques (3 par ronde).
-  </p>
-</div>
-
 
 <script>
   // Masque/affiche la sélection multiple selon le mode
   const radios = document.querySelectorAll('input[name="recipients_mode"]');
   const selBox = document.getElementById('recipientsSelect');
   function toggleRecipients(){
-    selBox.style.display = (document.querySelector('input[name="recipients_mode"]:checked').value === 'selected') ? '' : 'none';
+    if (!selBox) return;
+    const checked = document.querySelector('input[name="recipients_mode"]:checked');
+    if (!checked) return;
+    selBox.style.display = (checked.value === 'selected') ? '' : 'none';
   }
   radios.forEach(r => r.addEventListener('change', toggleRecipients));
   toggleRecipients();

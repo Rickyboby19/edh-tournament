@@ -1,4 +1,4 @@
-import os, json
+import os, json, re
 from datetime import datetime
 from itertools import combinations
 
@@ -8,12 +8,15 @@ from flask_login import LoginManager, login_user, login_required, logout_user, c
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_mail import Mail, Message
 from jinja2 import TemplateNotFound
-from sqlalchemy import func
+from json import JSONDecodeError
 
 from config import Config
 from models import db, User, Match, MatchPlayer, Submission, SubmissionApproval, Leaderboard
 from utils import make_token, read_token
 
+# -----------------------------------------------------------------------------
+# App / Extensions
+# -----------------------------------------------------------------------------
 app = Flask(__name__)
 app.config.from_object(Config)
 
@@ -24,44 +27,76 @@ login_manager.login_view = 'login'
 
 mail = Mail(app)
 
-# --------------------------- Bootstrap DB/Admin ---------------------------
+# -----------------------------------------------------------------------------
+# Modèles spécifiques au multi-tournois (rajoutés ici pour ne pas toucher models.py)
+# -----------------------------------------------------------------------------
+class Tournament(db.Model):
+    __tablename__ = "tournaments"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False, default="Tournoi EDH")
+    status = db.Column(db.String(20), nullable=False, default="pending")  # pending|started|finished
+    rounds_planned = db.Column(db.Integer, nullable=False, default=5)
+    current_round = db.Column(db.Integer, nullable=False, default=1)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    started_at = db.Column(db.DateTime, nullable=True)
+    finished_at = db.Column(db.DateTime, nullable=True)
+
+class TournamentPlayer(db.Model):
+    __tablename__ = "tournament_players"
+    id = db.Column(db.Integer, primary_key=True)
+    tournament_id = db.Column(db.Integer, db.ForeignKey("tournaments.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey(f"{User.__tablename__}.id"), nullable=False, index=True)
+    # Commandant saisi à l'inscription au tournoi (et non au compte)
+    commander = db.Column(db.String(200), nullable=True)
+    registered_at = db.Column(db.DateTime, default=datetime.utcnow)
+    __table_args__ = (db.UniqueConstraint("tournament_id", "user_id", name="uq_tournament_user"),)
+
+class TournamentMatch(db.Model):
+    """Mappe un Match existant à un Tournament, sans modifier la table Match."""
+    __tablename__ = "tournament_matches"
+    id = db.Column(db.Integer, primary_key=True)
+    tournament_id = db.Column(db.Integer, db.ForeignKey("tournaments.id"), nullable=False, index=True)
+    match_id = db.Column(db.Integer, db.ForeignKey(f"{Match.__tablename__}.id"), nullable=False, index=True)
+    __table_args__ = (db.UniqueConstraint("tournament_id", "match_id", name="uq_tournament_match"),)
+
+# -----------------------------------------------------------------------------
+# Bootstrap DB / Admin
+# -----------------------------------------------------------------------------
 with app.app_context():
     db.create_all()
-    # bootstrap admin if not present
+    # admin par défaut si absent
     admin_email = "eric.ranger@gmail.com"
     if admin_email and not User.query.filter_by(email=admin_email).first():
         admin = User(
             name="Admin",
             email=admin_email,
-            commander="N/A",
+            commander="",  # le commandant n'est plus stocké au compte
             password_hash=generate_password_hash("admin123"),
             is_admin=True
         )
         db.session.add(admin)
         db.session.commit()
+    # au moins un tournoi pending s'il n'y a rien d'actif
+    if not Tournament.query.filter(Tournament.status.in_(["pending", "started"])).first():
+        db.session.add(Tournament(name="Tournoi EDH", status="pending", rounds_planned=5, current_round=1))
+        db.session.commit()
 
 @login_manager.user_loader
 def load_user(user_id):
-    # compatible SQLAlchemy 2.x
     return db.session.get(User, int(user_id))
 
-# --------------------------- Objectives ---------------------------
-import re
-from json import JSONDecodeError
-
-# Un petit barème par défaut si objectives.json est manquant/cassé
+# -----------------------------------------------------------------------------
+# Objectives loader tolérant (accepte JSON avec virgules traînantes / commentaires)
+# -----------------------------------------------------------------------------
 DEFAULT_OBJECTIVES = [
     {"id": "win_table", "label": "Victoire de table", "type": "bool", "points": 4},
-    {"id": "kill_player", "label": "Eliminer un joueur", "type": "int",  "points": 1},
+    {"id": "kill_player", "label": "Éliminer un joueur", "type": "int",  "points": 1},
     {"id": "first_blood", "label": "First Blood", "type": "bool", "points": 1},
 ]
 
 def _clean_json_like(text: str) -> str:
-    """Tolère les commentaires et virgules finales: enlève //... et /* ... */, puis virgules pendantes."""
-    # supprime commentaires // et /* */
     text = re.sub(r"//.*?$", "", text, flags=re.MULTILINE)
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
-    # supprime les virgules avant } ou ]
     text = re.sub(r",\s*([}\]])", r"\1", text)
     return text
 
@@ -71,13 +106,11 @@ def _list_to_dict(objs):
         oid = o.get("id")
         if not oid:
             continue
-        # normalise
         typ = o.get("type", "bool")
         if typ not in ("bool", "int"):
             typ = "bool"
-        pts = o.get("points", 0)
         try:
-            pts = int(pts)
+            pts = int(o.get("points", 0))
         except Exception:
             pts = 0
         out[oid] = {
@@ -89,50 +122,56 @@ def _list_to_dict(objs):
     return out
 
 def load_objectives() -> dict:
-    """
-    Charge objectives.json en étant tolérant (commentaires, virgules finales).
-    Retourne toujours un dict {id: meta}.
-    """
     path = os.path.join(app.root_path, "objectives.json")
     try:
         with open(path, "r", encoding="utf-8") as f:
             raw = f.read()
         try:
-            # tentative stricte
             objs = json.loads(raw)
         except JSONDecodeError:
-            # tentative tolérante
             cleaned = _clean_json_like(raw)
             objs = json.loads(cleaned)
         if isinstance(objs, dict):
-            # si l’utilisateur a mis un objet {id: {...}}
             return _list_to_dict([{"id": k, **(v or {})} for k, v in objs.items()])
         elif isinstance(objs, list):
             return _list_to_dict(objs)
         else:
             raise ValueError("Format d’objectives.json invalide (doit être liste ou objet)")
     except Exception as e:
-        # fallback: ne pas bloquer le démarrage
         print(f"[WARN] objectives.json illisible: {e}. Utilisation du barème par défaut.")
         return _list_to_dict(DEFAULT_OBJECTIVES)
 
-# IMPORTANT: maintenant load_objectives() RENVOIE déjà un dict
 OBJECTIVES = load_objectives()
 
-
-# --------------------------- Jinja helper: has_endpoint ---------------------------
+# -----------------------------------------------------------------------------
+# Helpers (Jinja + décorateur admin)
+# -----------------------------------------------------------------------------
 @app.context_processor
 def utility_processor():
     from flask import url_for as _url_for
+
     def has_endpoint(name: str) -> bool:
         try:
             _url_for(name)
             return True
         except Exception:
             return False
-    return dict(has_endpoint=has_endpoint)
 
-# --------------------------- Admin guard ---------------------------
+    def tournament_status():
+        t = Tournament.query.filter(Tournament.status.in_(["pending", "started"])) \
+                            .order_by(Tournament.created_at.desc()).first()
+        return t.status if t else "pending"
+
+    def is_registered_for(tournament_id: int, user_id: int) -> bool:
+        return db.session.query(TournamentPlayer.id) \
+            .filter_by(tournament_id=tournament_id, user_id=user_id).first() is not None
+
+    return dict(
+        has_endpoint=has_endpoint,
+        tournament_status=tournament_status,
+        is_registered_for=is_registered_for
+    )
+
 def admin_required(fn):
     from functools import wraps
     @wraps(fn)
@@ -142,7 +181,9 @@ def admin_required(fn):
         return fn(*args, **kwargs)
     return wrapper
 
-# --------------------------- Public ---------------------------
+# -----------------------------------------------------------------------------
+# Public
+# -----------------------------------------------------------------------------
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -150,10 +191,8 @@ def index():
 @app.get("/reglements")
 def reglements():
     try:
-        # on passe OBJECTIVES au template pour afficher le barème dynamiquement
         return render_template("reglements.html", objectives=OBJECTIVES)
     except TemplateNotFound:
-        # Fallback si le fichier manque toujours
         rows = []
         for oid, meta in OBJECTIVES.items():
             label = meta.get("label", oid.replace("_", " ").title())
@@ -172,34 +211,40 @@ def reglements():
             "<!doctype html><meta charset='utf-8'>"
             "<h1>Règlements du tournoi</h1>"
             "<p>Le fichier <code>templates/reglements.html</code> est manquant. "
-            "Voici un aperçu du barème directement issu de <code>objectives.json</code> :</p>"
+            "Voici un aperçu du barème depuis <code>objectives.json</code> :</p>"
             + table_html,
             200,
         )
 
+# -----------------------------------------------------------------------------
+# Auth
+# -----------------------------------------------------------------------------
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
         name = request.form.get("name","").strip()
         email = request.form.get("email","").strip().lower()
-        commander = request.form.get("commander","").strip()
         password = request.form.get("password","")
-        if not (name and email and commander and password):
+
+        if not (name and email and password):
             flash("Tous les champs sont requis.", "danger")
             return redirect(url_for("register"))
+
         if User.query.filter_by(email=email).first():
             flash("Courriel déjà utilisé.", "warning")
             return redirect(url_for("register"))
+
         u = User(
             name=name,
             email=email,
-            commander=commander,
+            commander="",  # le commandant est maintenant saisi par tournoi
             password_hash=generate_password_hash(password)
         )
         db.session.add(u)
         db.session.commit()
         flash("Inscription réussie. Vous pouvez vous connecter.", "success")
         return redirect(url_for("login"))
+
     return render_template("register.html")
 
 @app.route("/login", methods=["GET", "POST"])
@@ -220,10 +265,144 @@ def logout():
     logout_user()
     return redirect(url_for("index"))
 
+# -----------------------------------------------------------------------------
+# Tournois
+# -----------------------------------------------------------------------------
+@app.get("/tournaments")
+@login_required
+def tournaments_list():
+    tournaments = Tournament.query.order_by(
+        db.case(
+            (Tournament.status == "started", 0),
+            (Tournament.status == "pending", 1),
+            else_=2
+        ),
+        Tournament.created_at.desc()
+    ).all()
+    try:
+        return render_template("tournaments.html", tournaments=tournaments)
+    except TemplateNotFound:
+        items = "".join(
+            f"<li><a href='{url_for('tournament_detail', tournament_id=t.id)}'>{t.name}</a> "
+            f"(statut: {t.status}, rondes: {t.current_round}/{t.rounds_planned})</li>"
+            for t in tournaments
+        )
+        return f"<!doctype html><meta charset='utf-8'><h1>Tournois</h1><ul>{items or '<li>Aucun tournoi</li>'}</ul>"
+
+@app.get("/tournaments/<int:tournament_id>")
+@login_required
+def tournament_detail(tournament_id: int):
+    t = Tournament.query.get_or_404(tournament_id)
+
+    registered = (
+        db.session.query(TournamentPlayer, User)
+        .join(User, TournamentPlayer.user_id == User.id)
+        .filter(TournamentPlayer.tournament_id == t.id)
+        .order_by(User.name.asc())
+        .all()
+    )
+
+    current_tables = []
+    if t.status in ("pending", "started"):
+        matches = (
+            db.session.query(Match)
+            .join(TournamentMatch, TournamentMatch.match_id == Match.id)
+            .filter(TournamentMatch.tournament_id == t.id, Match.round_number == t.current_round)
+            .order_by(Match.id.asc())
+            .all()
+        )
+        for m in matches:
+            players = (
+                db.session.query(User)
+                .join(MatchPlayer, MatchPlayer.user_id == User.id)
+                .filter(MatchPlayer.match_id == m.id)
+                .order_by(User.name.asc())
+                .all()
+            )
+            current_tables.append({"match": m, "players": players})
+
+    try:
+        return render_template(
+            "tournament_detail.html",
+            t=t, registered=registered, current_tables=current_tables, objectives=OBJECTIVES
+        )
+    except TemplateNotFound:
+        reg_html = "".join(
+            f"<li>{u.name} — <em>{tp.commander or 'Commander non renseigné'}</em></li>"
+            for tp, u in registered
+        ) or "<li>Aucun joueur inscrit</li>"
+        tables_html = ""
+        if current_tables:
+            tables_html += "<ul>"
+            for row in current_tables:
+                plist = ", ".join(p.name for p in row["players"])
+                tables_html += f"<li>Table {row['match'].id}: {plist}</li>"
+            tables_html += "</ul>"
+        else:
+            tables_html = "<p>Aucune table pour la ronde courante.</p>"
+        return (
+            f"<!doctype html><meta charset='utf-8'>"
+            f"<h1>{t.name}</h1>"
+            f"<p>Statut: {t.status} — Ronde: {t.current_round}/{t.rounds_planned}</p>"
+            f"<h2>Inscrits</h2><ul>{reg_html}</ul>"
+            f"<h2>Tables (ronde {t.current_round})</h2>{tables_html}"
+        )
+
+@app.post("/tournaments/<int:tournament_id>/register")
+@login_required
+def tournament_register(tournament_id: int):
+    t = Tournament.query.get_or_404(tournament_id)
+    if t.status != "pending":
+        flash("Les inscriptions sont fermées (tournoi démarré).", "warning")
+        return redirect(url_for("tournament_detail", tournament_id=t.id))
+
+    commander = (request.form.get("commander") or "").strip()
+    if not commander:
+        flash("Merci d’indiquer votre commandant pour ce tournoi.", "warning")
+        return redirect(url_for("tournament_detail", tournament_id=t.id))
+
+    exists = TournamentPlayer.query.filter_by(tournament_id=t.id, user_id=current_user.id).first()
+    if exists:
+        exists.commander = commander
+        db.session.commit()
+        flash("Commandant mis à jour pour ce tournoi ✅", "success")
+    else:
+        db.session.add(TournamentPlayer(tournament_id=t.id, user_id=current_user.id, commander=commander))
+        db.session.commit()
+        flash("Inscription au tournoi confirmée ✅", "success")
+    return redirect(url_for("tournament_detail", tournament_id=t.id))
+
+@app.post("/tournaments/<int:tournament_id>/unregister")
+@login_required
+def tournament_unregister(tournament_id: int):
+    t = Tournament.query.get_or_404(tournament_id)
+    if t.status != "pending":
+        flash("Impossible de se désinscrire après le démarrage.", "warning")
+        return redirect(url_for("tournament_detail", tournament_id=t.id))
+    TournamentPlayer.query.filter_by(tournament_id=t.id, user_id=current_user.id).delete()
+    db.session.commit()
+    flash("Désinscription effectuée.", "success")
+    return redirect(url_for("tournament_detail", tournament_id=t.id))
+
+# Anciennes routes (redirigées)
+@app.post("/tournament/register")
+@login_required
+def old_tournament_register():
+    flash("Inscription déplacée. Choisis un tournoi dans l’onglet Tournois.", "info")
+    return redirect(url_for("tournaments_list"))
+
+@app.post("/tournament/unregister")
+@login_required
+def old_tournament_unregister():
+    flash("Désinscription déplacée. Choisis un tournoi dans l’onglet Tournois.", "info")
+    return redirect(url_for("tournaments_list"))
+
+# -----------------------------------------------------------------------------
+# Dashboard
+# -----------------------------------------------------------------------------
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    players = User.query.order_by(User.created_at.asc()).all()
     lb = (
         db.session.query(Leaderboard, User)
         .join(User, Leaderboard.user_id==User.id)
@@ -237,8 +416,18 @@ def dashboard():
         .order_by(Match.round_number.asc()).all()
         if match_ids else []
     )
-    return render_template("dashboard.html", players=players, leaderboard=lb, matches=matches)
+    tournaments = Tournament.query.order_by(Tournament.created_at.desc()).all()
+    my_regs = {
+        t.id: db.session.query(TournamentPlayer).filter_by(tournament_id=t.id, user_id=current_user.id).first()
+        for t in tournaments
+    }
+    return render_template("dashboard.html",
+                           leaderboard=lb, matches=matches,
+                           tournaments=tournaments, my_regs=my_regs)
 
+# -----------------------------------------------------------------------------
+# Compte
+# -----------------------------------------------------------------------------
 @app.route("/account", methods=["GET", "POST"])
 @login_required
 def account():
@@ -270,31 +459,9 @@ def account():
 
     return render_template("account.html")
 
-# --------------------------- Matches utilitaires ---------------------------
-@app.route("/admin/round/new", methods=["POST"])
-@login_required
-def admin_new_round():
-    if not current_user.is_admin:
-        abort(403)
-    round_number = int(request.form.get("round_number", "1"))
-    Match.query.filter_by(round_number=round_number).delete()
-    db.session.commit()
-    players = User.query.order_by(User.id.asc()).all()
-    groups = [players[i:i+4] for i in range(0, len(players), 4)]
-    created = []
-    for g in groups:
-        if len(g) < 2:
-            continue
-        m = Match(round_number=round_number)
-        db.session.add(m)
-        db.session.flush()
-        for u in g:
-            db.session.add(MatchPlayer(match_id=m.id, user_id=u.id))
-        created.append(m.id)
-    db.session.commit()
-    flash(f"Créé {len(created)} tables pour la ronde {round_number}.", "success")
-    return redirect(url_for("dashboard"))
-
+# -----------------------------------------------------------------------------
+# Matches / Soumissions
+# -----------------------------------------------------------------------------
 @app.route("/match/<int:match_id>")
 @login_required
 def match_detail(match_id):
@@ -329,7 +496,7 @@ def match_submit(match_id):
             else:
                 try:
                     val = int(request.form.get(oid, "0"))
-                except:
+                except Exception:
                     val = 0
             payload[oid] = val
             if meta["type"] == "bool":
@@ -415,6 +582,9 @@ def confirm_submission(token, decision):
     flash(f"Soumission {sub.status}. Merci!", "success" if sub.status=="approved" else "warning")
     return redirect(url_for("index"))
 
+# -----------------------------------------------------------------------------
+# Classement & joueurs
+# -----------------------------------------------------------------------------
 @app.route("/leaderboard")
 def leaderboard():
     entries = (
@@ -429,21 +599,20 @@ def players():
     entries = User.query.order_by(User.created_at.asc()).all()
     return render_template("players.html", players=entries)
 
-# --------------------------- Admin: home ---------------------------
+# -----------------------------------------------------------------------------
+# Admin: accueil (stats + tournois + raccourcis)
+# -----------------------------------------------------------------------------
 @app.route("/admin")
 @login_required
 @admin_required
 def admin_home():
-    # Stats
     total_users = User.query.count()
     total_matches = Match.query.count()
     total_submissions = Submission.query.count()
-    rounds = [
+    rounds_present = [
         r[0] for r in db.session.query(Match.round_number)
         .distinct().order_by(Match.round_number.asc()).all()
     ]
-
-    # Sélecteurs + aperçu leaderboard
     players = User.query.order_by(User.name.asc()).all()
     leaderboard = (
         db.session.query(Leaderboard, User)
@@ -451,24 +620,201 @@ def admin_home():
         .order_by(Leaderboard.points.desc())
         .all()
     )
-
+    tournaments = Tournament.query.order_by(
+        db.case(
+            (Tournament.status == "started", 0),
+            (Tournament.status == "pending", 1),
+            else_=2
+        ),
+        Tournament.created_at.desc()
+    ).all()
     return render_template(
         "admin.html",
         total_users=total_users,
         total_matches=total_matches,
         total_submissions=total_submissions,
-        rounds=rounds,
+        rounds=rounds_present,
         players=players,
         leaderboard=leaderboard,
+        tournaments=tournaments,
     )
 
-# --------------------------- Admin: submissions list ---------------------------
+# -----------------------------------------------------------------------------
+# Admin: créer / démarrer / contrôles du tournoi
+# -----------------------------------------------------------------------------
+@app.post("/admin/tournaments/create")
+@login_required
+@admin_required
+def admin_tournament_create():
+    name = (request.form.get("name") or "Tournoi EDH").strip()
+    rounds_planned = max(1, min(5, request.form.get("rounds_planned", type=int) or 5))
+    t = Tournament(name=name, status="pending", rounds_planned=rounds_planned, current_round=1)
+    db.session.add(t)
+    db.session.commit()
+    flash(f"Tournoi créé: {t.name} ({rounds_planned} rondes prévues).", "success")
+    return redirect(url_for("tournament_detail", tournament_id=t.id))
+
+def _build_rounds_max_unique(players_ids, max_rounds=5, table_size=4):
+    """Heuristique gloutonne pour limiter les re-rencontres, tables de 3–4."""
+    n = len(players_ids)
+    if n < 2:
+        return []
+    pair_count = {}
+    def pc(a,b):
+        return pair_count.get((a,b) if a<b else (b,a), 0)
+    def inc_pc(table):
+        for a,b in combinations(table, 2):
+            k = (a,b) if a<b else (b,a)
+            pair_count[k] = pair_count.get(k,0) + 1
+    rounds = []
+    ids = list(players_ids)
+    for _ in range(max_rounds):
+        remaining = set(ids)
+        tables = []
+        while len(remaining) >= 3 and (len(remaining) >= table_size or len(remaining) in (3,)):
+            seed = max(remaining, key=lambda u: sum(pc(u, v) for v in remaining if v != u))
+            remaining.remove(seed)
+            others = list(remaining)
+            best = None
+            best_score = None
+            want = table_size - 1 if len(remaining) >= (table_size - 1) else len(remaining)
+            for combo in combinations(others, want):
+                cand = [seed] + list(combo)
+                score = sum(pc(a,b) for a,b in combinations(cand, 2))
+                if best is None or score < best_score:
+                    best = cand
+                    best_score = score
+            for u in best[1:]:
+                remaining.remove(u)
+            tables.append(best)
+            inc_pc(best)
+        leftovers = list(remaining)
+        if leftovers:
+            tables.sort(key=lambda t: (len(t), sum(pc(a,b) for a,b in combinations(t,2))))
+            for u in leftovers:
+                placed = False
+                for idx, ttable in enumerate(tables):
+                    if len(ttable) < table_size:
+                        tables[idx] = ttable + [u]
+                        inc_pc([*ttable, u])
+                        placed = True
+                        break
+                if not placed:
+                    tables.append([u])
+        tables = [t for t in tables if len(t) >= 3]
+        if not tables:
+            break
+        rounds.append(tables)
+    return rounds
+
+@app.post("/admin/tournaments/<int:tournament_id>/start")
+@login_required
+@admin_required
+def admin_tournament_start(tournament_id: int):
+    t = Tournament.query.get_or_404(tournament_id)
+    if t.status == "started":
+        flash("Ce tournoi est déjà démarré.", "info")
+        return redirect(url_for("tournament_detail", tournament_id=t.id))
+
+    max_rounds = max(1, min(5, request.form.get("max_rounds", type=int) or t.rounds_planned or 5))
+    t.rounds_planned = max_rounds
+
+    regs = TournamentPlayer.query.filter_by(tournament_id=t.id).all()
+    player_ids = [r.user_id for r in regs]
+    if len(player_ids) < 4:
+        flash("Il faut au moins 4 joueurs inscrits pour démarrer le tournoi.", "warning")
+        return redirect(url_for("tournament_detail", tournament_id=t.id))
+
+    # Nettoyage des matches déjà mappés sur ce tournoi
+    try:
+        m_ids = [mid for (mid,) in db.session.query(TournamentMatch.match_id).filter_by(tournament_id=t.id).all()]
+        if m_ids:
+            sub_ids = [sid for (sid,) in db.session.query(Submission.id).filter(Submission.match_id.in_(m_ids)).all()]
+            if sub_ids:
+                SubmissionApproval.query.filter(SubmissionApproval.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+                Submission.query.filter(Submission.id.in_(sub_ids)).delete(synchronize_session=False)
+            MatchPlayer.query.filter(MatchPlayer.match_id.in_(m_ids)).delete(synchronize_session=False)
+            Match.query.filter(Match.id.in_(m_ids)).delete(synchronize_session=False)
+            TournamentMatch.query.filter_by(tournament_id=t.id).delete(synchronize_session=False)
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    schedule = _build_rounds_max_unique(player_ids, max_rounds=max_rounds, table_size=4)
+    created = 0
+    for r_idx, tables in enumerate(schedule, start=1):
+        for table in tables:
+            m = Match(round_number=r_idx)
+            db.session.add(m)
+            db.session.flush()
+            db.session.add(TournamentMatch(tournament_id=t.id, match_id=m.id))
+            for uid in table:
+                db.session.add(MatchPlayer(match_id=m.id, user_id=uid))
+            created += 1
+
+    t.status = "started"
+    t.current_round = 1
+    t.started_at = datetime.utcnow()
+    db.session.commit()
+
+    flash(f"Tournoi démarré: {len(player_ids)} joueurs, {len(schedule)} ronde(s), {created} table(s).", "success")
+    return redirect(url_for("tournament_detail", tournament_id=t.id))
+
+@app.post("/admin/tournaments/<int:tournament_id>/round/next")
+@login_required
+@admin_required
+def admin_tournament_round_next(tournament_id: int):
+    t = Tournament.query.get_or_404(tournament_id)
+    if t.status != "started":
+        flash("Le tournoi doit être démarré.", "warning")
+        return redirect(url_for("tournament_detail", tournament_id=t.id))
+    if t.current_round < t.rounds_planned:
+        t.current_round += 1
+        db.session.commit()
+        flash(f"Passage à la ronde {t.current_round}.", "success")
+    else:
+        flash("Dernière ronde atteinte.", "info")
+    return redirect(url_for("tournament_detail", tournament_id=t.id))
+
+@app.post("/admin/tournaments/<int:tournament_id>/round/prev")
+@login_required
+@admin_required
+def admin_tournament_round_prev(tournament_id: int):
+    t = Tournament.query.get_or_404(tournament_id)
+    if t.status != "started":
+        flash("Le tournoi doit être démarré.", "warning")
+        return redirect(url_for("tournament_detail", tournament_id=t.id))
+    if t.current_round > 1:
+        t.current_round -= 1
+        db.session.commit()
+        flash(f"Retour à la ronde {t.current_round}.", "success")
+    else:
+        flash("Déjà à la première ronde.", "info")
+    return redirect(url_for("tournament_detail", tournament_id=t.id))
+    
+# ---------------------------------------------------------------------
+# Compatibilité ancienne UI: /admin/round/new (remplacé par Tournois)
+# ---------------------------------------------------------------------
+@app.post("/admin/round/new")
+@login_required
+@admin_required
+def admin_new_round():
+    flash(
+        "La génération de tables par ronde a été remplacée par le système Tournois. "
+        "Va dans l’onglet « Tournois », inscris les joueurs, puis clique « Démarrer le tournoi ».",
+        "info"
+    )
+    return redirect(url_for("tournaments_list"))
+
+
+# -----------------------------------------------------------------------------
+# Admin: liste des soumissions
+# -----------------------------------------------------------------------------
 @app.route("/admin/submissions")
 @login_required
 @admin_required
 def admin_submissions():
     player_id = request.args.get("player_id", type=int)
-
     q = (
         db.session.query(Submission, User, Match)
         .join(User, Submission.user_id == User.id)
@@ -476,10 +822,8 @@ def admin_submissions():
     )
     if player_id:
         q = q.filter(Submission.user_id == player_id)
-
     submissions = q.order_by(Submission.created_at.desc()).all()
     players = User.query.order_by(User.name.asc()).all()
-
     return render_template(
         "admin_submissions.html",
         submissions=submissions,
@@ -488,7 +832,9 @@ def admin_submissions():
         objectives=OBJECTIVES
     )
 
-# --------------------------- Admin: points update ---------------------------
+# -----------------------------------------------------------------------------
+# Admin: points
+# -----------------------------------------------------------------------------
 @app.post("/admin/points/update")
 @login_required
 @admin_required
@@ -510,26 +856,25 @@ def admin_points_update():
     if not row:
         row = Leaderboard(user_id=user_id, points=0)
         db.session.add(row)
-    else:
-        db.session.flush()
 
     if mode == "set":
         row.points = max(0, value)
-    else:  # delta
+    else:
         row.points = max(0, (row.points or 0) + value)
 
     db.session.commit()
     flash(f"Points de {u.name} mis à jour ({row.points}).", "success")
     return redirect(url_for("admin_home"))
 
-# --------------------------- Admin: reset ---------------------------
+# -----------------------------------------------------------------------------
+# Admin: reset
+# -----------------------------------------------------------------------------
 @app.post("/admin/reset")
 @login_required
 @admin_required
 def admin_reset():
     scope = request.form.get("scope", "scores")
     keep_players = request.form.get("keep_players") == "on"
-
     deleted = []
     try:
         if scope in ("scores", "all"):
@@ -537,21 +882,25 @@ def admin_reset():
             deleted.append(f"scores:{n}")
 
         if scope in ("matches", "all"):
-            # ordre important : approvals -> submissions -> matchplayers -> matches
             n1 = SubmissionApproval.query.delete(synchronize_session=False)
             n2 = Submission.query.delete(synchronize_session=False)
             n3 = MatchPlayer.query.delete(synchronize_session=False)
             n4 = Match.query.delete(synchronize_session=False)
-            deleted.append(f"approvals:{n1}, submissions:{n2}, matchplayers:{n3}, matches:{n4}")
+            n5 = TournamentMatch.query.delete(synchronize_session=False)
+            deleted.append(f"approvals:{n1}, submissions:{n2}, matchplayers:{n3}, matches:{n4}, tournament_matches:{n5}")
 
         if scope == "all" and not keep_players:
-            # éviter de supprimer l'admin pour ne pas te lock-out (optionnel)
             admin = User.query.filter_by(is_admin=True).first()
             if admin:
                 User.query.filter(User.id != admin.id).delete(synchronize_session=False)
             else:
                 User.query.delete(synchronize_session=False)
             deleted.append("users:reset")
+
+        TournamentPlayer.query.delete(synchronize_session=False)
+        Tournament.query.delete(synchronize_session=False)
+
+        db.session.add(Tournament(name="Tournoi EDH", status="pending", rounds_planned=5, current_round=1))
 
         db.session.commit()
         flash("Réinitialisation effectuée (" + " | ".join(deleted) + ")", "success")
@@ -561,7 +910,47 @@ def admin_reset():
 
     return redirect(url_for("admin_home"))
 
-# --------------------------- Admin: email ---------------------------
+# -----------------------------------------------------------------------------
+# Admin: rôles (accorder/retirer admin)
+# -----------------------------------------------------------------------------
+@app.post("/admin/users/<int:user_id>/admin")
+@login_required
+@admin_required
+def admin_user_admin(user_id: int):
+    """Accorde ou retire le rôle admin à un joueur (sécurité: ne retire pas le dernier admin)."""
+    action = request.form.get("action", "grant")
+    u = db.session.get(User, user_id)
+    if not u:
+        flash("Joueur introuvable.", "danger")
+        return redirect(url_for("admin_home"))
+
+    if action == "grant":
+        if u.is_admin:
+            flash(f"{u.name} est déjà admin.", "info")
+        else:
+            u.is_admin = True
+            db.session.commit()
+            flash(f"{u.name} est maintenant admin ✅", "success")
+
+    elif action == "revoke":
+        if not u.is_admin:
+            flash(f"{u.name} n'est pas admin.", "info")
+        else:
+            total_admins = User.query.filter_by(is_admin=True).count()
+            if total_admins <= 1:
+                flash("Impossible de retirer le dernier administrateur (sécurité).", "warning")
+            else:
+                u.is_admin = False
+                db.session.commit()
+                flash(f"Droits admin retirés à {u.name}.", "success")
+    else:
+        flash("Action invalide.", "warning")
+
+    return redirect(url_for("admin_home"))
+
+# -----------------------------------------------------------------------------
+# Admin: email (optionnel)
+# -----------------------------------------------------------------------------
 @app.post("/admin/email")
 @login_required
 @admin_required
@@ -588,7 +977,6 @@ def admin_email():
         return redirect(url_for("admin_home"))
 
     try:
-        # un seul email avec BCC (évite reply-all)
         msg = Message(subject=subject, recipients=[], bcc=recipients)
         msg.body = body
         msg.html = body.replace("\n", "<br>")
@@ -599,245 +987,8 @@ def admin_email():
 
     return redirect(url_for("admin_home"))
 
-# --------------------------- Tournoi: heuristique d'appariement ---------------------------
-def _build_rounds_max_unique(players_ids, max_rounds=5, table_size=4):
-    """
-    Construit jusqu'à max_rounds rondes de pods (taille 4) en minimisant
-    les re-rencontres (pair repeats). Heuristique gloutonne suffisante pour 8–24 joueurs.
-    Retour: List[List[List[int]]]  -> rounds -> tables -> user_ids
-    """
-    n = len(players_ids)
-    if n < 2:
-        return []
-
-    # compteur de co-présences (paires)
-    pair_count = {}
-    def pc(a,b):
-        return pair_count.get((a,b) if a<b else (b,a), 0)
-
-    def inc_pc(table):
-        for a,b in combinations(table, 2):
-            k = (a,b) if a<b else (b,a)
-            pair_count[k] = pair_count.get(k,0) + 1
-
-    rounds = []
-    ids = list(players_ids)
-
-    for _ in range(max_rounds):
-        remaining = set(ids)
-        tables = []
-
-        # Si le nombre ne tombe pas pile, on peut laisser une table à 3 (évite 2)
-        while len(remaining) >= 3 and (len(remaining) >= table_size or len(remaining) in (3,)):
-            # seed = joueur qui a le plus de collisions potentielles -> on place d'abord
-            seed = max(remaining, key=lambda u: sum(pc(u, v) for v in remaining if v != u))
-            remaining.remove(seed)
-
-            # on choisit la meilleure combinaison de (table_size-1) autour du seed
-            others = list(remaining)
-            best = None
-            best_score = None
-            want = table_size - 1 if len(remaining) >= (table_size - 1) else len(remaining)
-            for combo in combinations(others, want):
-                cand = [seed] + list(combo)
-                # score = somme des pair_count dans la table (on minimise)
-                score = sum(pc(a,b) for a,b in combinations(cand, 2))
-                if best is None or score < best_score:
-                    best = cand
-                    best_score = score
-
-            # place la table
-            for u in best[1:]:
-                remaining.remove(u)
-            tables.append(best)
-            inc_pc(best)
-
-        # s'il reste 1–2 joueurs isolés, on les “greffe” à des tables existantes (les plus petites)
-        leftovers = list(remaining)
-        if leftovers:
-            # trie les tables par taille croissante puis par score d'impact
-            tables.sort(key=lambda t: (len(t), sum(pc(a,b) for a,b in combinations(t,2))))
-            for u in leftovers:
-                # on ne dépasse pas 5 par table; priorité aux tables de 3
-                placed = False
-                for idx, t in enumerate(tables):
-                    if len(t) < table_size:  # préfère <=4
-                        # score d'ajout
-                        _ = sum(pc(u, v) for v in t)  # métrique locale
-                        tables[idx] = t + [u]
-                        inc_pc([*t, u])
-                        placed = True
-                        break
-                if not placed:
-                    # en dernier recours, crée une mini-table (3) si rien d'autre ne convient
-                    tables.append([u])
-
-        # filtre: on valide seulement les tables à 3 ou 4
-        tables = [t for t in tables if len(t) >= 3]
-        if not tables:
-            break
-        rounds.append(tables)
-
-    return rounds
-
-# --------------------------- Tournoi: démarrage (rondes 1..5) ---------------------------
-@app.post("/admin/tournament/start")
-@login_required
-@admin_required
-def admin_tournament_start():
-    # max 5 rondes par défaut
-    max_rounds = request.form.get("max_rounds", type=int) or 5
-    max_rounds = max(1, min(5, max_rounds))
-
-    # joueurs pris au moment du lancement
-    players = User.query.order_by(User.created_at.asc()).all()
-    player_ids = [p.id for p in players]
-    if len(player_ids) < 4:
-        flash("Il faut au moins 4 joueurs pour démarrer le tournoi.", "warning")
-        return redirect(url_for("admin_home"))
-
-    # supprime anciennes données de saison (rondes 1..7) + leaderboard
-    try:
-        # on efface proprement dans l'ordre inverse des dépendances
-        SubmissionApproval.query.delete(synchronize_session=False)
-        Submission.query.delete(synchronize_session=False)
-        MatchPlayer.query.delete(synchronize_session=False)
-        Match.query.filter(Match.round_number.between(1, 7)).delete(synchronize_session=False)
-        Leaderboard.query.delete(synchronize_session=False)
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-
-    # construit l’horaire
-    schedule = _build_rounds_max_unique(player_ids, max_rounds=max_rounds, table_size=4)
-
-    # enregistre les matches
-    created = 0
-    for r_idx, tables in enumerate(schedule, start=1):
-        for table in tables:
-            m = Match(round_number=r_idx)
-            db.session.add(m)
-            db.session.flush()
-            for uid in table:
-                db.session.add(MatchPlayer(match_id=m.id, user_id=uid))
-            created += 1
-    db.session.commit()
-
-    max_unique = len(schedule) * 3  # par joueur, 3 adversaires par ronde
-    msg = f"Tournoi démarré : {len(players)} joueurs, {len(schedule)} ronde(s), {created} table(s) créées. " \
-          f"Chaque joueur peut rencontrer au plus {max_unique} adversaires uniques en {len(schedule)} rondes."
-    flash(msg, "success")
-    return redirect(url_for("admin_home"))
-
-# --------------------------- Tournoi: demi-finales (round 6) ---------------------------
-@app.post("/admin/tournament/semis")
-@login_required
-@admin_required
-def admin_tournament_semis():
-    # récupère top 8
-    top = (
-        db.session.query(Leaderboard, User)
-        .join(User, Leaderboard.user_id == User.id)
-        .order_by(Leaderboard.points.desc(), User.name.asc())
-        .limit(8).all()
-    )
-    if len(top) < 8:
-        flash("Moins de 8 joueurs au classement — impossible de générer les demi-finales.", "warning")
-        return redirect(url_for("admin_home"))
-
-    ids = [row.user_id for row, _ in top]  # ordonnés
-    # serpentin: table A: 1,4,5,8 ; table B: 2,3,6,7
-    a = [ids[0], ids[3], ids[4], ids[7]]
-    b = [ids[1], ids[2], ids[5], ids[6]]
-
-    # supprime anciennes phases 6/7 si elles existent
-    try:
-        m_ids = [m.id for m in Match.query.filter(Match.round_number.in_([6, 7])).all()]
-        if m_ids:
-            sub_ids = [sid for (sid,) in db.session.query(Submission.id).filter(Submission.match_id.in_(m_ids)).all()]
-            if sub_ids:
-                SubmissionApproval.query.filter(SubmissionApproval.submission_id.in_(sub_ids)).delete(synchronize_session=False)
-                Submission.query.filter(Submission.id.in_(sub_ids)).delete(synchronize_session=False)
-            MatchPlayer.query.filter(MatchPlayer.match_id.in_(m_ids)).delete(synchronize_session=False)
-            Match.query.filter(Match.id.in_(m_ids)).delete(synchronize_session=False)
-            db.session.commit()
-    except Exception:
-        db.session.rollback()
-
-    # crée les 2 demi-finales (round 6)
-    for table in (a, b):
-        m = Match(round_number=6)
-        db.session.add(m)
-        db.session.flush()
-        for uid in table:
-            db.session.add(MatchPlayer(match_id=m.id, user_id=uid))
-    db.session.commit()
-
-    flash("Demi-finales créées (round 6) : 2 tables de 4 joueurs (seed serpentin).", "success")
-    return redirect(url_for("admin_home"))
-
-# --------------------------- Tournoi: finale (round 7) ---------------------------
-@app.post("/admin/tournament/final")
-@login_required
-@admin_required
-def admin_tournament_final():
-    semis = Match.query.filter_by(round_number=6).all()
-    if len(semis) != 2:
-        flash("Il faut exactement 2 demi-finales (round 6) pour générer la finale.", "warning")
-        return redirect(url_for("admin_home"))
-
-    finalists = []
-    for semi in semis:
-        # joueurs de la demi
-        players = [mp.user_id for mp in MatchPlayer.query.filter_by(match_id=semi.id).all()]
-        if not players:
-            continue
-
-        # points approuvés dans cette demi uniquement
-        rows = (
-            db.session.query(Submission.user_id, func.coalesce(func.sum(Submission.total_points), 0))
-            .filter(Submission.match_id == semi.id, Submission.status == "approved")
-            .group_by(Submission.user_id)
-            .all()
-        )
-        points_by_user = {uid: 0 for uid in players}
-        for uid, pts in rows:
-            points_by_user[uid] = pts or 0
-
-        # top2
-        top2 = sorted(points_by_user.items(), key=lambda kv: (-kv[1], kv[0]))[:2]
-        finalists.extend([uid for uid, _ in top2])
-
-    if len(finalists) != 4:
-        flash("Impossible de déterminer 4 finalistes (vérifie les soumissions approuvées en demi).", "danger")
-        return redirect(url_for("admin_home"))
-
-    # supprime ancienne finale si existante
-    try:
-        old = Match.query.filter_by(round_number=7).all()
-        old_ids = [m.id for m in old]
-        if old_ids:
-            sub_ids = [sid for (sid,) in db.session.query(Submission.id).filter(Submission.match_id.in_(old_ids)).all()]
-            if sub_ids:
-                SubmissionApproval.query.filter(SubmissionApproval.submission_id.in_(sub_ids)).delete(synchronize_session=False)
-                Submission.query.filter(Submission.id.in_(sub_ids)).delete(synchronize_session=False)
-            MatchPlayer.query.filter(MatchPlayer.match_id.in_(old_ids)).delete(synchronize_session=False)
-            Match.query.filter(Match.id.in_(old_ids)).delete(synchronize_session=False)
-            db.session.commit()
-    except Exception:
-        db.session.rollback()
-
-    # crée la finale (round 7)
-    m = Match(round_number=7)
-    db.session.add(m)
-    db.session.flush()
-    for uid in finalists:
-        db.session.add(MatchPlayer(match_id=m.id, user_id=uid))
-    db.session.commit()
-
-    flash("Finale (round 7) créée avec les 4 meilleurs des demi-finales.", "success")
-    return redirect(url_for("admin_home"))
-
-# --------------------------- Run ---------------------------
+# -----------------------------------------------------------------------------
+# Run
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))

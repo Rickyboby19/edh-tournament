@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}{{ t.name }} — Spelltable QC{% endblock %}
+
+{% block content %}
+<section class="wrap">
+  <h1>{{ t.name }}</h1>
+
+  <div class="card" style="margin-bottom:14px;">
+    <div style="display:flex; gap:18px; flex-wrap:wrap; align-items:center;">
+      <div>
+        Statut :
+        {% if t.status == 'pending' %}
+          <strong>En préparation</strong>
+        {% elif t.status == 'started' %}
+          <strong>En cours</strong>
+        {% else %}
+          <strong>Terminé</strong>
+        {% endif %}
+      </div>
+      <div>Rondes : <strong>{{ t.current_round }}/{{ t.rounds_planned }}</strong></div>
+      <div>Créé : <strong>{{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at }}</strong></div>
+      <div>Démarré : <strong>{{ t.started_at.strftime('%Y-%m-%d %H:%M') if t.started_at else '—' }}</strong></div>
+    </div>
+  </div>
+
+  <!-- Bloc inscription / mise à jour commandant (pour ce tournoi) -->
+  {% if current_user.is_authenticated and t.status == 'pending' %}
+    {% set ns = namespace(tp=None) %}
+    {% for tp, u in registered %}
+      {% if u.id == current_user.id %}
+        {% set ns.tp = tp %}
+      {% endif %}
+    {% endfor %}
+
+    <div class="card" style="margin-bottom:14px;">
+      <h3>Participation</h3>
+      {% if ns.tp %}
+        <p>Tu es inscrit à ce tournoi.</p>
+        <form method="post" action="{{ url_for('tournament_register', tournament_id=t.id) }}" style="display:flex; gap:10px; align-items:end;">
+          <label>Commandant
+            <input type="text" name="commander" value="{{ ns.tp.commander or '' }}" required>
+          </label>
+          <button class="btn">Mettre à jour</button>
+        </form>
+        <form method="post" action="{{ url_for('tournament_unregister', tournament_id=t.id) }}" style="margin-top:10px;">
+          <button class="btn ghost" onclick="return confirm('Se désinscrire de ce tournoi ?')">Se désinscrire</button>
+        </form>
+      {% else %}
+        <p>Inscris-toi et indique ton commandant pour ce tournoi.</p>
+        <form method="post" action="{{ url_for('tournament_register', tournament_id=t.id) }}" style="display:flex; gap:10px; align-items:end;">
+          <label>Commandant
+            <input type="text" name="commander" placeholder="Nom du commandant" required>
+          </label>
+          <button class="btn">S’inscrire</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <!-- Outils Admin -->
+  {% if current_user.is_authenticated and current_user.is_admin %}
+    <div class="card" style="margin-bottom:14px;">
+      <h3>Administration du tournoi</h3>
+
+      {% if t.status == 'pending' %}
+        <form method="post" action="{{ url_for('admin_tournament_start', tournament_id=t.id) }}"
+              style="display:flex; gap:10px; align-items:end; margin-bottom:10px;">
+          <label>Nombre de rondes (max 5)
+            <input type="number" name="max_rounds" value="{{ t.rounds_planned }}" min="1" max="5">
+          </label>
+          <button class="btn">🔔 Démarrer le tournoi</button>
+        </form>
+      {% elif t.status == 'started' %}
+        <div style="display:flex; gap:10px;">
+          <form method="post" action="{{ url_for('admin_tournament_round_prev', tournament_id=t.id) }}">
+            <button class="btn ghost" {% if t.current_round <= 1 %}disabled{% endif %}>← Ronde précédente</button>
+          </form>
+          <form method="post" action="{{ url_for('admin_tournament_round_next', tournament_id=t.id) }}">
+            <button class="btn" {% if t.current_round >= t.rounds_planned %}disabled{% endif %}>Ronde suivante →</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <!-- Inscrits -->
+  <div class="card" style="margin-bottom:14px;">
+    <h3>Joueurs inscrits</h3>
+    <table class="table">
+      <thead>
+        <tr><th>#</th><th>Joueur</th><th>Commandant (pour ce tournoi)</th></tr>
+      </thead>
+      <tbody>
+        {% for tp, u in registered %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ u.name }}</td>
+            <td>{{ tp.commander or '—' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="3">Aucun joueur inscrit pour l’instant.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Tables de la ronde courante -->
+  <div class="card">
+    <h3>Tables — Ronde {{ t.current_round }}</h3>
+    <table class="table">
+      <thead>
+        <tr><th>Table #</th><th>Joueurs</th><th style="width:160px;"></th></tr>
+      </thead>
+      <tbody>
+        {% for row in current_tables %}
+          <tr>
+            <td>{{ row.match.id }}</td>
+            <td>
+              {% for p in row.players %}
+                <div>{{ p.name }}</div>
+              {% endfor %}
+            </td>
+            <td>
+              {% if current_user.is_authenticated %}
+                {% set mine = row.players | selectattr('id','equalto',current_user.id) | list %}
+                {% if mine|length > 0 %}
+                  <a class="btn" href="{{ url_for('match_detail', match_id=row.match.id) }}">Ma table</a>
+                {% else %}
+                  <a class="btn ghost" href="{{ url_for('match_detail', match_id=row.match.id) }}">Détails</a>
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="3">Aucune table pour cette ronde.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
