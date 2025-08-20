@@ -1,36 +1,57 @@
 {% extends "base.html" %}
+{% block title %}Détails — Ronde {{ m.round_number }} · Table {{ m.id }}{% endblock %}
 {% block content %}
+
 <h2>Ronde {{ m.round_number }} — Table {{ m.id }}</h2>
+
 <p><strong>Joueurs :</strong></p>
 <div class="chips">
-{% for p in players %}
-<span class="chip">{{ p.name }} — {{ p.commander }}</span>
-{% endfor %}
+  {% for p in players %}
+    <span class="chip">{{ p.name }} — {{ p.commander }}</span>
+  {% endfor %}
 </div>
-<p style="margin-top:10px">
-<a class="btn" href="{{ url_for('match_submit', match_id=m.id) }}">Soumettre mes points</a>
-</p>
 
+<p style="margin-top:10px">
+  <a class="btn" href="{{ url_for('match_submit', match_id=m.id) }}">Soumettre mes points</a>
+</p>
 
 <h3>Soumissions</h3>
 <table class="table">
-<thead>
-<tr><th>Joueur</th><th>Points</th><th>Statut</th><th>Date</th></tr>
-</thead>
-<tbody>
-{% for s in submissions %}
-<tr>
-<td>{{ u_map.get(s.user_id).name if u_map.get(s.user_id) else s.user_id }}</td>
-<td>{{ s.total_points }}</td>
-<td>
-{% set st = s.status %}
-<span class="badge {{ st }}">{{ st|capitalize }}</span>
-</td>
-<td>{{ s.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
-</tr>
-{% else %}
-<tr><td colspan="4">Aucune soumission.</td></tr>
-{% endfor %}
-</tbody>
+  <thead>
+    <tr>
+      <th>Joueur</th>
+      <th>Points</th>
+      <th>Statut</th>
+      <th>Date</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in submissions %}
+      <tr>
+        <td>
+          {% if u_map is defined and u_map.get(s.user_id) %}
+            {{ u_map.get(s.user_id).name }}
+          {% else %}
+            {{ s.user_id }}
+          {% endif %}
+        </td>
+        <td><strong>{{ s.total_points }}</strong></td>
+        <td>
+          {% set st = s.status|default('pending') %}
+          <span class="badge {{ st }}">{{ st|capitalize }}</span>
+        </td>
+        <td>
+          {% if s.created_at %}
+            {{ s.created_at.strftime("%Y-%m-%d %H:%M") }}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4">Aucune soumission pour le moment.</td></tr>
+    {% endfor %}
+  </tbody>
 </table>
+
 {% endblock %}

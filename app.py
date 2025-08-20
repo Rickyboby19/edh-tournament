@@ -1,7 +1,5 @@
 import os, json
 from datetime import datetime
-from functools import wraps
-
 from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
@@ -22,11 +20,11 @@ login_manager.login_view = 'login'
 
 mail = Mail(app)
 
-# -- Création admin fixe (email + mdp) --
 with app.app_context():
     db.create_all()
+    # bootstrap admin if not present
     admin_email = "eric.ranger@gmail.com"
-    if not User.query.filter_by(email=admin_email).first():
+    if admin_email and not User.query.filter_by(email=admin_email).first():
         admin = User(
             name="Admin",
             email=admin_email,
@@ -39,24 +37,14 @@ with app.app_context():
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    # compatible SQLAlchemy 2.x
+    return db.session.get(User, int(user_id))
 
 def load_objectives():
     with app.open_resource("objectives.json", "r") as f:
         return json.load(f)
 
 OBJECTIVES = {o["id"]: o for o in load_objectives()}
-
-# --------- Helper: admin_required ----------
-def admin_required(fn):
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        if not current_user.is_authenticated or not getattr(current_user, "is_admin", False):
-            abort(403)
-        return fn(*args, **kwargs)
-    return wrapper
-
-# ---------------------- Routes publiques ----------------------
 
 @app.route("/")
 def index():
@@ -75,7 +63,12 @@ def register():
         if User.query.filter_by(email=email).first():
             flash("Courriel déjà utilisé.", "warning")
             return redirect(url_for("register"))
-        u = User(name=name, email=email, commander=commander, password_hash=generate_password_hash(password))
+        u = User(
+            name=name,
+            email=email,
+            commander=commander,
+            password_hash=generate_password_hash(password)
+        )
         db.session.add(u)
         db.session.commit()
         flash("Inscription réussie. Vous pouvez vous connecter.", "success")
@@ -99,8 +92,6 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for("index"))
-
-# ---------------------- Tableau de bord & compte ----------------------
 
 @app.route("/dashboard")
 @login_required
@@ -143,144 +134,14 @@ def account():
 
     return render_template("account.html")
 
-# ---------------------- Admin: page & actions ----------------------
-
-@app.route("/admin", methods=["GET"])
-@login_required
-@admin_required
-def admin_home():
-    total_users = User.query.count()
-    total_matches = Match.query.count()
-    total_submissions = Submission.query.count()
-
-    leaderboard = (
-        db.session.query(Leaderboard, User)
-        .join(User, Leaderboard.user_id == User.id)
-        .order_by(Leaderboard.points.desc())
-        .all()
-    )
-
-    players = User.query.order_by(User.created_at.asc()).all()
-    rounds = sorted({m.round_number for m in Match.query.all()})
-
-    return render_template(
-        "admin.html",
-        total_users=total_users,
-        total_matches=total_matches,
-        total_submissions=total_submissions,
-        leaderboard=leaderboard,
-        players=players,
-        rounds=rounds,
-    )
-
-@app.route("/admin/reset", methods=["POST"])
-@login_required
-@admin_required
-def admin_reset():
-    scope = request.form.get("scope")  # "scores", "matches", "all"
-    keep_players = request.form.get("keep_players") == "on"
-
-    try:
-        # Suppression ordonnée (dépendances d'abord)
-        SubmissionApproval.query.delete()
-        Submission.query.delete()
-        MatchPlayer.query.delete()
-        Match.query.delete()
-
-        if scope in ("scores", "all"):
-            Leaderboard.query.delete()
-
-        if scope == "all" and not keep_players:
-            # Garde l'admin principal
-            User.query.filter(User.email != "eric.ranger@gmail.com").delete()
-
-        db.session.commit()
-        flash("Réinitialisation exécutée ✅", "success")
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Erreur de réinitialisation: {e}", "danger")
-
-    return redirect(url_for("admin_home"))
-
-@app.route("/admin/points/update", methods=["POST"])
-@login_required
-@admin_required
-def admin_points_update():
-    user_id = request.form.get("user_id", type=int)
-    mode = request.form.get("mode", "delta")  # "delta" ou "set"
-    value = request.form.get("value", type=int)
-
-    if not user_id or value is None:
-        flash("Paramètres invalides.", "warning")
-        return redirect(url_for("admin_home"))
-
-    user = User.query.get(user_id)
-    if not user:
-        flash("Joueur introuvable.", "danger")
-        return redirect(url_for("admin_home"))
-
-    lb = Leaderboard.query.filter_by(user_id=user.id).first()
-    if not lb:
-        lb = Leaderboard(user_id=user.id, points=0)
-        db.session.add(lb)
-
-    if mode == "set":
-        lb.points = value
-    else:
-        lb.points += value
-
-    db.session.commit()
-    flash(f"Points mis à jour pour {user.name} ({'=' if mode=='set' else '+='}{value}).", "success")
-    return redirect(url_for("admin_home"))
-
-@app.route("/admin/email", methods=["POST"])
-@login_required
-@admin_required
-def admin_email():
-    recipients_mode = request.form.get("recipients_mode", "selected")  # "selected" | "all"
-    subject = request.form.get("subject", "").strip()
-    body = request.form.get("body", "").strip()
-    selected_ids = request.form.getlist("player_ids")
-
-    if not subject or not body:
-        flash("Sujet et message sont requis.", "warning")
-        return redirect(url_for("admin_home"))
-
-    emails = []
-    if recipients_mode == "all":
-        emails = [u.email for u in User.query.all() if u.email]
-    else:
-        if not selected_ids:
-            flash("Aucun destinataire sélectionné.", "warning")
-            return redirect(url_for("admin_home"))
-        users = User.query.filter(User.id.in_([int(x) for x in selected_ids])).all()
-        emails = [u.email for u in users if u.email]
-
-    sent = 0
-    for email in emails:
-        try:
-            msg = Message(subject=subject, recipients=[email])
-            msg.body = body
-            msg.html = f"<p>{body.replace(chr(10), '<br>')}</p>"
-            mail.send(msg)
-            sent += 1
-        except Exception as e:
-            print("Mail error:", e)
-
-    flash(f"Courriel envoyé à {sent} destinataire(s).", "success" if sent else "warning")
-    return redirect(url_for("admin_home"))
-
-# ---------------------- Admin: génération de rondes ----------------------
-
 @app.route("/admin/round/new", methods=["POST"])
 @login_required
-@admin_required
 def admin_new_round():
+    if not current_user.is_admin:
+        abort(403)
     round_number = int(request.form.get("round_number", "1"))
-    # Efface les matches existants de cette ronde (reseed)
     Match.query.filter_by(round_number=round_number).delete()
     db.session.commit()
-
     players = User.query.order_by(User.id.asc()).all()
     groups = [players[i:i+4] for i in range(0, len(players), 4)]
     created = []
@@ -295,32 +156,15 @@ def admin_new_round():
         created.append(m.id)
     db.session.commit()
     flash(f"Créé {len(created)} tables pour la ronde {round_number}.", "success")
-    return redirect(url_for("admin_home"))
-
-# ---------------------- Détails & soumission de match ----------------------
+    return redirect(url_for("dashboard"))
 
 @app.route("/match/<int:match_id>")
 @login_required
 def match_detail(match_id):
     m = Match.query.get_or_404(match_id)
-    players = (
-        db.session.query(User)
-        .join(MatchPlayer, MatchPlayer.user_id == User.id)
-        .filter(MatchPlayer.match_id == m.id)
-        .all()
-    )
+    players = db.session.query(User).join(MatchPlayer, MatchPlayer.user_id==User.id).filter(MatchPlayer.match_id==m.id).all()
     submissions = Submission.query.filter_by(match_id=m.id).all()
-    uid_set = list({s.user_id for s in submissions})
-    u_map = {u.id: u for u in User.query.filter(User.id.in_(uid_set)).all()} if uid_set else {}
-
-    return render_template(
-        "match_detail.html",
-        m=m,
-        players=players,
-        submissions=submissions,
-        objectives=OBJECTIVES,
-        u_map=u_map,
-    )
+    return render_template("match_detail.html", m=m, players=players, submissions=submissions, objectives=OBJECTIVES)
 
 @app.route("/match/<int:match_id>/submit", methods=["GET","POST"])
 @login_required
@@ -329,7 +173,6 @@ def match_submit(match_id):
     if not MatchPlayer.query.filter_by(match_id=match_id, user_id=current_user.id).first():
         flash("Vous ne faites pas partie de cette table.", "warning")
         return redirect(url_for("dashboard"))
-
     players = db.session.query(User).join(MatchPlayer, MatchPlayer.user_id==User.id).filter(MatchPlayer.match_id==m.id).all()
 
     if request.method == "POST":
@@ -353,7 +196,6 @@ def match_submit(match_id):
         db.session.add(sub)
         db.session.commit()
 
-        # Emails de confirmation aux autres joueurs
         others = [p for p in players if p.id != current_user.id]
         for p in others:
             try:
@@ -369,7 +211,7 @@ def match_submit(match_id):
             except Exception as e:
                 print("Mail error:", e)
 
-        flash("Feuille soumise. Des courriels de confirmation ont été envoyés.", "success")
+        flash("Feuille soumise. Des courriels de confirmation ont été envoyés aux autres joueurs de la table.", "success")
         return redirect(url_for("match_detail", match_id=match_id))
 
     return render_template("match_submit.html", m=m, objectives=OBJECTIVES)
@@ -386,12 +228,10 @@ def confirm_submission(token, decision):
 
     sub = Submission.query.get_or_404(submission_id)
 
-    # Vérifications de droit
     if not MatchPlayer.query.filter_by(match_id=sub.match_id, user_id=approver_id).first() or sub.user_id == approver_id:
         flash("Lien non autorisé.", "danger")
         return redirect(url_for("index"))
 
-    # Enregistrer la décision si pas déjà
     exists = SubmissionApproval.query.filter_by(submission_id=sub.id, approver_id=approver_id).first()
     if not exists:
         a = SubmissionApproval(submission_id=sub.id, approver_id=approver_id, decision="approve" if decision=="approve" else "reject")
@@ -416,8 +256,6 @@ def confirm_submission(token, decision):
     flash(f"Soumission {sub.status}. Merci!", "success" if sub.status=="approved" else "warning")
     return redirect(url_for("index"))
 
-# ---------------------- Pages publiques simples ----------------------
-
 @app.route("/leaderboard")
 def leaderboard():
     entries = db.session.query(Leaderboard, User).join(User, Leaderboard.user_id==User.id).order_by(Leaderboard.points.desc()).all()
@@ -428,11 +266,38 @@ def players():
     entries = User.query.order_by(User.created_at.asc()).all()
     return render_template("players.html", players=entries)
 
-@app.route("/reglements")
-def reglements():
-    return render_template("rules.html")
+# ---------- Admin ----------
+def admin_required(fn):
+    from functools import wraps
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            abort(403)
+        return fn(*args, **kwargs)
+    return wrapper
 
-# ---------------------- Entrypoint ----------------------
+@app.route("/admin")
+@login_required
+@admin_required
+def admin_home():
+    return render_template("admin.html")
 
+@app.route("/admin/submissions")
+@login_required
+@admin_required
+def admin_submissions():
+    player_id = request.args.get("player_id", type=int)
+    q = (
+        db.session.query(Submission, User, Match)
+        .join(User, Submission.user_id == User.id)
+        .join(Match, Submission.match_id == Match.id)
+    )
+    if player_id:
+        q = q.filter(Submission.user_id == player_id)
+    submissions = q.order_by(Submission.created_at.desc()).all()
+    players = User.query.order_by(User.name.asc()).all()
+    return render_template("admin_submissions.html", submissions=submissions, players=players, selected=player_id, objectives=OBJECTIVES)
+
+# ---------- Run ----------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
