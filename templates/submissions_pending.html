@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Confirmations — SpellTable QC{% endblock %}
+{% block content %}
+
+<h1>Confirmations en attente</h1>
+
+{% set pending = items|default([]) %}
+
+{% if not pending %}
+  <div class="card">
+    <p>Aucune feuille en attente de votre confirmation pour l’instant.</p>
+    <p class="hint">Vous ne voyez ici que les feuilles soumises par un autre joueur d’une table où vous êtes assis.</p>
+  </div>
+{% else %}
+  <section class="stack" style="display:flex;flex-direction:column;gap:12px">
+    {% for sub, m in pending %}
+      <article class="card">
+        <header style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+          <div>
+            <div><strong>Ronde {{ m.round_number }}</strong> — Table {{ m.id }}</div>
+            <small class="hint">
+              Soumis le {{ sub.created_at.strftime('%d/%m/%Y %H:%M') if sub.created_at else '—' }}
+              · Total: <strong>{{ sub.total_points }} pts</strong>
+            </small>
+          </div>
+          <div style="display:flex;gap:8px">
+            <a class="btn success" href="{{ url_for('submission_decide', submission_id=sub.id, decision='approve') }}">Approuver</a>
+            <a class="btn danger" href="{{ url_for('submission_decide', submission_id=sub.id, decision='reject') }}">Rejeter</a>
+          </div>
+        </header>
+
+        <details style="margin-top:8px">
+          <summary>Voir la feuille détaillée</summary>
+          <ul style="margin:10px 0 0;padding:0;list-style:none">
+            {% set obj = objectives|default({}) %}
+            {% for oid, meta in obj.items() %}
+              {% set val = (sub.payload.get(oid) if sub.payload is not none else None) %}
+              {% if meta.type == 'bool' %}
+                {% set picked = 1 if val else 0 %}
+                {% set pts = (meta.points or 0) * picked %}
+                <li style="padding:6px 0;border-bottom:1px solid var(--line)">
+                  {{ meta.label or oid }} — {{ 'Oui' if picked else 'Non' }} ·
+                  <strong>{{ pts }} pts</strong>
+                </li>
+              {% else %}
+                {% set q = (val or 0)|int %}
+                {% set pts = (meta.points or 0) * (q if q > 0 else 0) %}
+                <li style="padding:6px 0;border-bottom:1px solid var(--line)">
+                  {{ meta.label or oid }} — {{ q }} ·
+                  <strong>{{ pts }} pts</strong>
+                </li>
+              {% endif %}
+            {% endfor %}
+          </ul>
+        </details>
+      </article>
+    {% endfor %}
+  </section>
+{% endif %}
+
+{% endblock %}

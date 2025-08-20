@@ -1,85 +1,69 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <title>{% block title %}Spelltable QC – Tournoi EDH{% endblock %}</title>
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo-discord.png') }}">
-
-  <!-- CSS principal -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v=7) }}" />
-
-  {% block extra_head %}{% endblock %}
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}SpellTable QC{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=8">
 </head>
 <body>
 
-<header>
-  <div class="wrap">
-    <!-- Logo + titre -->
-    <a class="brand" href="{{ url_for('index') }}" aria-label="Accueil Spelltable QC">
-      <img class="brand-logo"
-           src="{{ url_for('static', filename='images/logo-discord.png') }}"
-           alt="Logo Spelltable QC" />
-      <span>Spelltable QC – Tournoi EDH</span>
+<header class="site-header">
+  <div class="container header-bar">
+    <a class="brand" href="{{ url_for('index') }}" aria-label="Accueil SpellTable QC">
+      <img src="{{ url_for('static', filename='images/logo-discord.png') }}" alt="Logo" class="brand-logo">
+      <span class="brand-title">SpellTable QC</span>
     </a>
 
-    <!-- Navigation -->
-    <nav>
-      <a href="{{ url_for('index') }}">Accueil</a>
-      <a href="{{ url_for('players') }}">Joueurs</a>
-	  <a href="{{ url_for('tournaments_list') }}">Tournois</a>
-
-      {# Lien "Règlements" protégé : s'affiche seulement si l'endpoint existe #}
-      {% if has_endpoint('reglements') %}
-        <a href="{{ url_for('reglements') }}">Règlements</a>
-      {% endif %}
-
-      <a href="{{ url_for('leaderboard') }}">Leaderboard</a>
-
+    <nav class="main-nav" aria-label="Navigation principale">
+      <a href="{{ url_for('tournaments_list') }}">Tournois</a>
       {% if current_user.is_authenticated %}
         <a href="{{ url_for('dashboard') }}">Tableau de bord</a>
-        <a href="{{ url_for('account') }}">Mon compte</a>
-
-        {% if current_user.is_admin and has_endpoint('admin_home') %}
-          <a href="{{ url_for('admin_home') }}">Admin</a>
-        {% endif %}
-
-        <a href="{{ url_for('logout') }}">Se déconnecter</a>
-      {% else %}
-        <a href="{{ url_for('login') }}">Connexion</a>
-        <a href="{{ url_for('register') }}">Inscription</a>
+        <a href="{{ url_for('submissions_pending') }}">Confirmations</a>
       {% endif %}
+      {% if current_user.is_authenticated and current_user.is_admin %}
+        <a href="{{ url_for('admin_home') }}">Admin</a>
+      {% endif %}
+    </nav>
 
-      <!-- Bouton Discord -->
-      <a class="btn ghost" href="https://discord.gg/whqG9Aqw2s" target="_blank" rel="noopener">
+    <div class="header-actions">
+      <a class="discord-link" href="{{ discord_invite or 'https://discord.gg/votre-invitation' }}" target="_blank" rel="noopener">
+        <!-- mini icône Discord en SVG, neutre -->
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20.317 4.369A19.791 19.791 0 0 0 16.558 3c-.2.36-.431.84-.591 1.217a18.27 18.27 0 0 0-4.934 0c-.16-.377-.391-.857-.591-1.217-1.405.256-2.79.7-3.759 1.369C2.676 8.254 2.08 12.01 2.276 15.724a19.93 19.93 0 0 0 6.021 3.029c.469-.64.885-1.319 1.238-2.028-.684-.258-1.341-.576-1.962-.949.164-.12.325-.247.48-.379a13.98 13.98 0 0 0 7.894 0c.157.132.318.259.48.379-.62.373-1.278.691-1.962.949.353.709.77 1.389 1.239 2.028a19.93 19.93 0 0 0 6.021-3.029c.247-4.31-.722-8.035-2.406-11.355ZM9.68 13.885c-1.064 0-1.93-.98-1.93-2.189 0-1.209.852-2.189 1.93-2.189 1.087 0 1.953.98 1.93 2.189 0 1.209-.843 2.189-1.93 2.189Zm4.64 0c-1.064 0-1.93-.98-1.93-2.189 0-1.209.852-2.189 1.93-2.189 1.087 0 1.953.98 1.93 2.189 0 1.209-.843 2.189-1.93 2.189Z"/>
+        </svg>
         Discord
       </a>
-    </nav>
+
+      {% if current_user.is_authenticated %}
+        <a class="btn ghost" href="{{ url_for('logout') }}">Déconnexion</a>
+      {% else %}
+        <a class="btn ghost" href="{{ url_for('login') }}">Connexion</a>
+        <a class="btn" href="{{ url_for('register') }}">Créer un compte</a>
+      {% endif %}
+    </div>
   </div>
 </header>
 
-<main>
-  <!-- Flash messages -->
-  {% with messages = get_flashed_messages(with_categories=True) %}
+<main class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-      {% for category, message in messages %}
-        <div class="flash {{ category }}">{{ message }}</div>
-      {% endfor %}
+      <section class="flash-stack">
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      </section>
     {% endif %}
   {% endwith %}
 
   {% block content %}{% endblock %}
 </main>
 
-
-
-<footer>
-  <small>&copy; {{ 2025 }} Spelltable QC — Tournoi EDH</small>
+<footer class="site-footer">
+  <div class="container">
+    <small>&copy; {{ now().year if now else '' }} SpellTable QC — Tournois Commander</small>
+  </div>
 </footer>
 
-{% block scripts %}{% endblock %}
 </body>
 </html>

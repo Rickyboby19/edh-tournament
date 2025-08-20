@@ -1,84 +1,67 @@
 {% extends "base.html" %}
-{% block title %}Gestion des joueurs — Admin{% endblock %}
-
 {% block content %}
-<h2>Gestion des joueurs</h2>
 
-<div class="grid cols-3" style="align-items:end; gap:12px; margin-bottom:12px;">
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap">
   <div>
-    <label>Recherche
-      <input id="userSearch" type="text" placeholder="Filtrer par nom ou email…" style="width:100%">
-    </label>
+    <h1 style="margin:0">Utilisateurs</h1>
+    <p class="muted" style="margin:0">Liste des comptes enregistrés</p>
   </div>
-  <div>
-    <span class="badge">Total: {{ users|length }}</span>
-    <span class="badge">Admins: {{ admin_count }}</span>
-  </div>
-  <div style="text-align:right;">
-    <a class="btn ghost" href="{{ url_for('admin_home') }}">← Retour admin</a>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a class="btn ghost" href="{{ url_for('admin_home') }}">⟵ Retour admin</a>
+    <a class="btn ghost" href="{{ url_for('players') }}">Voir la page publique</a>
   </div>
 </div>
 
-<table class="table" id="usersTable">
-  <thead>
-    <tr>
-      <th style="width:70px">ID</th>
-      <th>Nom</th>
-      <th>Email</th>
-      <th style="width:240px">Action</th>
-    </tr>
-  </thead>
-  <tbody>
-  {% for u in users %}
-    <tr>
-      <td>{{ u.id }}</td>
-      <td>
-        {{ u.name }}
-        {% if u.is_admin %}
-          <span class="badge badge-ok">admin</span>
-        {% endif %}
-        {% if current_user.id == u.id %}
-          <span class="badge">toi</span>
-        {% endif %}
-      </td>
-      <td>{{ u.email }}</td>
-      <td>
-        <form method="post"
-              action="{{ url_for('admin_user_delete', user_id=u.id) }}"
-              onsubmit="return confirm('Supprimer {{ u.name }} ? Cette action retire ses soumissions, approbations, inscriptions et scores.');"
-              style="display:flex; gap:10px; align-items:center;">
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <h3 style="margin:0">Comptes ({{ users|length }})</h3>
+    <input id="userFilter" class="input" placeholder="Filtrer par nom ou email…" oninput="filterUsers()" style="min-width:260px">
+  </div>
 
-          {% if u.is_admin %}
-            <label class="checkbox" title="Obligatoire pour supprimer un admin">
-              <input type="checkbox" name="force_admin"> forcer (si admin)
-            </label>
-          {% endif %}
+  <div class="table-wrap" style="margin-top:10px; overflow:auto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th style="white-space:nowrap">ID</th>
+          <th>Nom</th>
+          <th>Email</th>
+          <th style="white-space:nowrap">Admin</th>
+          <th style="white-space:nowrap">Créé le</th>
+        </tr>
+      </thead>
+      <tbody id="usersBody">
+        {% for u in users %}
+        <tr>
+          <td>{{ u.id }}</td>
+          <td>{{ u.name }}</td>
+          <td><a href="mailto:{{ u.email }}">{{ u.email }}</a></td>
+          <td>
+            {% if u.is_admin %}
+              <span class="tag">Oui</span>
+            {% else %}
+              <span class="tag" style="background:var(--line);color:var(--text)">Non</span>
+            {% endif %}
+          </td>
+          <td>{{ u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="muted">Aucun utilisateur.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
-          <button class="btn"
-                  type="submit"
-                  {% if current_user.id == u.id %}disabled title="Tu ne peux pas te supprimer toi-même."{% endif %}>
-            Supprimer
-          </button>
-        </form>
-      </td>
-    </tr>
-  {% else %}
-    <tr><td colspan="4">Aucun joueur.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+  <p class="hint" style="margin-top:8px">Cette page est en lecture seule. (Pas d’actions car aucune route d’édition n’est définie dans l’application.)</p>
+</div>
 
 <script>
-  // Filtre rapide côté client sur nom/email
-  const input = document.getElementById('userSearch');
-  const table = document.getElementById('usersTable').querySelector('tbody');
-  input.addEventListener('input', () => {
-    const q = input.value.toLowerCase().trim();
-    for (const tr of table.rows) {
-      const name = (tr.cells[1]?.innerText || '').toLowerCase();
-      const email = (tr.cells[2]?.innerText || '').toLowerCase();
-      tr.style.display = (name.includes(q) || email.includes(q)) ? '' : 'none';
-    }
-  });
+  function filterUsers() {
+    const q = (document.getElementById('userFilter').value || '').toLowerCase();
+    document.querySelectorAll('#usersBody tr').forEach(tr => {
+      const text = tr.innerText.toLowerCase();
+      tr.style.display = text.includes(q) ? '' : 'none';
+    });
+  }
 </script>
+
 {% endblock %}
