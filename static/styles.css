@@ -130,3 +130,13 @@ input[type=text],input[type=email],input[type=password],input[type=number]{
 
 /* ==== Footer ==== */
 footer{padding:20px; color:#9fb0d1; text-align:center; border-top:1px solid var(--line); background:#0b0e14}
+
+select, textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #0b0f1b;
+  color: #e8eefc;
+}
+

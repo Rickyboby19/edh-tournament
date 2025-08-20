@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Administration — Tournoi{% endblock %}
+{% block content %}
+
+<h2>Administration du tournoi</h2>
+
+<section class="grid cols-3">
+
+  <!-- Statistiques -->
+  <div class="card">
+    <h3>Statistiques</h3>
+    <ul style="margin:8px 0 0 0; padding-left:18px;">
+      <li>Joueurs : <strong>{{ total_users }}</strong></li>
+      <li>Tables (matches) : <strong>{{ total_matches }}</strong></li>
+      <li>Soumissions : <strong>{{ total_submissions }}</strong></li>
+      <li>Rondes existantes : {% if rounds %}{{ rounds|join(', ') }}{% else %}—{% endif %}</li>
+    </ul>
+  </div>
+
+  <!-- Mise à jour des points -->
+  <div class="card">
+    <h3>Mise à jour des points</h3>
+    <form method="post" action="{{ url_for('admin_points_update') }}">
+      <label>Joueur
+        <select name="user_id">
+          {% for p in players %}
+            <option value="{{ p.id }}">{{ p.name }} — {{ p.commander }} ({{ p.email }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Mode
+        <select name="mode">
+          <option value="delta">Ajouter/Retirer (Δ)</option>
+          <option value="set">Remplacer (=)</option>
+        </select>
+      </label>
+      <label>Valeur
+        <input type="number" name="value" value="1" />
+      </label>
+      <button type="submit" class="btn">Mettre à jour</button>
+    </form>
+  </div>
+
+  <!-- Reset tournoi -->
+  <div class="card">
+    <h3>Réinitialiser le tournoi</h3>
+    <form method="post" action="{{ url_for('admin_reset') }}">
+      <label>Étendue du reset
+        <select name="scope">
+          <option value="scores">Scores seulement (Leaderboard)</option>
+          <option value="matches">Matches + soumissions</option>
+          <option value="all">Tout (matches, soumissions, scores)</option>
+        </select>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" name="keep_players" checked>
+        Conserver les joueurs
+      </label>
+      <button type="submit" class="btn" onclick="return confirm('Confirmer la réinitialisation ?')">Réinitialiser</button>
+    </form>
+    <p class="hint" style="margin-top:8px">
+      Supprime d’abord approbations/soumissions, puis liaison joueurs et matches.  
+      En mode “Tout”, supprime aussi le Leaderboard.  
+      Option : conserver les joueurs.
+    </p>
+  </div>
+
+  <!-- Générer des tables (rondes) -->
+  <div class="card" style="grid-column:1 / -1">
+    <h3>Générer des tables par ronde</h3>
+    <form method="post" action="{{ url_for('admin_new_round') }}" style="display:flex; gap:10px; align-items:flex-end;">
+      <label>Ronde #
+        <input type="number" name="round_number" value="1" min="1" />
+      </label>
+      <button type="submit" class="btn">Créer/Remplacer les tables</button>
+    </form>
+    <p class="hint" style="margin-top:8px">Crée des pods de 4 joueurs selon l’ordre d’inscription.</p>
+  </div>
+
+  <!-- Leaderboard aperçu -->
+  <div class="card" style="grid-column:1 / -1">
+    <h3>Leaderboard (aperçu)</h3>
+    <table class="table">
+      <thead><tr><th>#</th><th>Joueur</th><th>Points</th></tr></thead>
+      <tbody>
+        {% for row, user in leaderboard %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ user.name }} — <span class="hint">{{ user.commander }}</span></td>
+            <td><strong>{{ row.points }}</strong></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="3">Aucun score enregistré.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Envoi de courriels -->
+  <div class="card" style="grid-column:1 / -1">
+    <h3>Envoyer un courriel</h3>
+    <form method="post" action="{{ url_for('admin_email') }}">
+      <div class="grid cols-3">
+        <div>
+          <label>Destinataires</label>
+          <label class="checkbox"><input type="radio" name="recipients_mode" value="selected" checked> Sélectionnés</label>
+          <label class="checkbox"><input type="radio" name="recipients_mode" value="all"> Tous les joueurs</label>
+
+          <div id="recipientsSelect" style="margin-top:8px">
+            <select name="player_ids" multiple size="8" style="width:100%">
+              {% for p in players %}
+                <option value="{{ p.id }}">{{ p.name }} — {{ p.email }}</option>
+              {% endfor %}
+            </select>
+            <div class="hint">Maintiens Ctrl (ou Cmd) pour multisélection.</div>
+          </div>
+        </div>
+
+        <div>
+          <label>Sujet
+            <input type="text" name="subject" placeholder="Sujet du message" required>
+          </label>
+          <label>Message
+            <textarea name="body" rows="7" placeholder="Ton message ici…" style="width:100%"></textarea>
+          </label>
+        </div>
+
+        <div style="display:flex;align-items:end;">
+          <button type="submit" class="btn">Envoyer</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+</section>
+
+<script>
+  // Masque/affiche la sélection multiple selon le mode
+  const radios = document.querySelectorAll('input[name="recipients_mode"]');
+  const selBox = document.getElementById('recipientsSelect');
+  function toggleRecipients(){
+    selBox.style.display = (document.querySelector('input[name="recipients_mode"]:checked').value === 'selected') ? '' : 'none';
+  }
+  radios.forEach(r => r.addEventListener('change', toggleRecipients));
+  toggleRecipients();
+</script>
+
+{% endblock %}
