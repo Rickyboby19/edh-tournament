@@ -1,15 +1,15 @@
 [
-  { "id": "game_winner", "label": "Game Winner", "type": "bool", "points": 2 },
-  { "id": "kill_player", "label": "Kill player (par élimination)", "type": "int", "points": 1 },
-  { "id": "first_blood", "label": "First blood", "type": "bool", "points": 1 },
+  { "id": "win_table", "label": "Victoire de table", "type": "bool", "points": 4 },
+  { "id": "kill_player", "label": "Éliminer un joueur", "type": "int", "points": 1 },
+  { "id": "first_blood", "label": "First Blood", "type": "bool", "points": 1 },
 
   { "id": "believe_in_my_boss", "label": "Believe in my boss (Cast commander avec triple taxe = +6 colorless)", "type": "bool", "points": 1 },
   { "id": "boss_job_done", "label": "The Boss gets the job done (tuer 1 joueur en dégâts de commandant, 1× / game)", "type": "bool", "points": 1 },
-  { "id": "head_shot", "label": "Head Shot! (One‑shot un adversaire à ≥ 25 pv)", "type": "bool", "points": 1 },
+  { "id": "head_shot", "label": "Head Shot! (One-shot un adversaire à ≥ 25 pv)", "type": "bool", "points": 1 },
   { "id": "hunter_skillz", "label": "The Hunter Skillz (Détruire/Exiler une créature cible avec ≥ 10 de force)", "type": "bool", "points": 1 },
   { "id": "the_underdog", "label": "The Underdog (Gagner en ayant le moins de terrains total)", "type": "bool", "points": 1 },
   { "id": "good_health", "label": "Good Health (Atteindre 60 pv via lifelink/life gain)", "type": "bool", "points": 1 },
-  { "id": "super_hero", "label": "Super‑Héros (sauver un autre joueur d’une mort assurée)", "type": "bool", "points": 1 },
+  { "id": "super_hero", "label": "Super-Héros (sauver un autre joueur d’une mort assurée)", "type": "bool", "points": 1 },
 
   { "id": "sharpshooter_all", "label": "Sharpshooter — ≥ 4 TARGET removal dans la partie (1 pt à chaque joueur encore vivant)", "type": "bool", "points": 1 },
   { "id": "sharpshooter_bonus", "label": "Sharpshooter — BONUS (si moi j’ai casté ≥ 4 removal)", "type": "bool", "points": 1 },
@@ -20,7 +20,7 @@
   { "id": "lawyer_bonus", "label": "Lawyer Skillz — BONUS (si les 4 cartes sont cast par un seul joueur et que c’est moi)", "type": "bool", "points": 1 },
   { "id": "robin_hood", "label": "Robin Hood (Voler ou goad ≥ 5 créatures différentes d’un autre joueur)", "type": "bool", "points": 1 },
 
-  { "id": "pen_scoop_mid", "label": "PÉNALITÉ — Player Scoop mid‑game (perd aussi les pts de la game en cours)", "type": "bool", "points": -20 },
+  { "id": "pen_scoop_mid", "label": "PÉNALITÉ — Player Scoop mid-game (perd aussi les pts de la game en cours)", "type": "bool", "points": -20 },
   { "id": "pen_win_before_t5", "label": "PÉNALITÉ — Win avant tour 5 (tous les autres joueurs +1 pt bonus)", "type": "bool", "points": -10 },
   { "id": "pen_long_turn", "label": "PÉNALITÉ — Tour > 10 min après 2 avertissements", "type": "int", "points": -1 },
   { "id": "pen_cheating", "label": "PÉNALITÉ — Preuve de tricherie (sanctions orga)", "type": "bool", "points": -30 },

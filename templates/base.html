@@ -30,15 +30,22 @@
     <nav>
       <a href="{{ url_for('index') }}">Accueil</a>
       <a href="{{ url_for('players') }}">Joueurs</a>
-      <a href="{{ url_for('reglements') }}">Règlements</a>
+
+      {# Lien "Règlements" protégé : s'affiche seulement si l'endpoint existe #}
+      {% if has_endpoint('reglements') %}
+        <a href="{{ url_for('reglements') }}">Règlements</a>
+      {% endif %}
+
       <a href="{{ url_for('leaderboard') }}">Leaderboard</a>
 
       {% if current_user.is_authenticated %}
         <a href="{{ url_for('dashboard') }}">Tableau de bord</a>
         <a href="{{ url_for('account') }}">Mon compte</a>
-        {% if current_user.is_admin %}
+
+        {% if current_user.is_admin and has_endpoint('admin_home') %}
           <a href="{{ url_for('admin_home') }}">Admin</a>
         {% endif %}
+
         <a href="{{ url_for('logout') }}">Se déconnecter</a>
       {% else %}
         <a href="{{ url_for('login') }}">Connexion</a>
@@ -73,4 +80,3 @@
 {% block scripts %}{% endblock %}
 </body>
 </html>
-

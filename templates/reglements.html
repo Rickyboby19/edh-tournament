@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Règlements — Tournoi EDH{% endblock %}
+{% block content %}
+
+<section class="wrap">
+  <h1>Règlements du tournoi EDH — Spelltable QC</h1>
+
+  <p class="hint">
+    Cette page décrit le format, le déroulement des rondes, le barème de points et les phases éliminatoires.
+    Le barème ci-dessous est généré automatiquement à partir des objectifs utilisés par le site.
+  </p>
+
+  <hr>
+
+  <h2>1) Format</h2>
+  <ul>
+    <li><strong>EDH / Commander multijoueur</strong> (généralement pods de 4 joueurs ; pods de 3 possibles si nécessaire).</li>
+    <li><strong>Points de vie :</strong> 40 PV.</li>
+    <li><strong>Mulligan :</strong> Mulligan de Londres.</li>
+    <li><strong>Banlist :</strong> Liste Commander officielle (Rules Committee). Si une carte est interdite, elle l’est aussi ici.</li>
+    <li><strong>Proxies :</strong> autorisées uniquement si lisibles et de qualité ; l’organisateur se réserve le droit de refuser une proxy illisible.</li>
+  </ul>
+
+  <h2>2) Déroulement des rondes “saison”</h2>
+  <ul>
+    <li>Jusqu’à <strong>5 rondes</strong> sont générées automatiquement quand l’admin clique sur “Début du tournoi”.</li>
+    <li>Les tables sont formées pour <em>maximiser les rencontres uniques</em> (on évite de rejouer contre les mêmes personnes).</li>
+    <li>Durée recommandée d’une ronde : <strong>75 minutes</strong> (adaptable par l’orga).</li>
+    <li>À la fin d’une partie, <strong>chaque joueur soumet sa feuille</strong> de points. Les autres joueurs reçoivent un courriel pour <strong>approuver</strong> ou <strong>rejeter</strong>.</li>
+    <li>Les points ne sont ajoutés au classement qu’après <strong>au moins une approbation</strong> et <strong>aucun rejet</strong> (sinon la soumission passe “rejetée”).</li>
+  </ul>
+
+  <h2>3) Barème de points (automatique)</h2>
+  <p>
+    Le barème ci-dessous provient de <code>objectives.json</code>. Les objectifs “Oui/Non” valent un montant fixe.
+    Les objectifs “Quantité” valent un montant <em>par unité</em> (par ex. nb de kills).
+  </p>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Objectif</th>
+        <th>Type</th>
+        <th>Barème</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if objectives %}
+        {% for oid, meta in objectives|dictsort %}
+          {% set label = meta.get('label', oid.replace('_', ' ').title()) %}
+          {% set typ = meta.get('type', 'bool') %}
+          {% set pts = meta.get('points', 0) %}
+          <tr>
+            <td>{{ label }}</td>
+            <td>{% if typ == 'bool' %}Oui/Non{% else %}Quantité{% endif %}</td>
+            <td>
+              {% if typ == 'bool' %}
+                {{ pts }} pts
+              {% else %}
+                {{ pts }} pts / unité
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="3">Aucun objectif n’est configuré. Vérifiez le fichier <code>objectives.json</code>.</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <h2>4) Phases finales</h2>
+  <ul>
+    <li>Après les rondes, on calcule le <strong>classement général</strong>.</li>
+    <li><strong>Demi-finales (Round 6)</strong> : Top 8 au classement → 2 tables de 4 (seeding serpentin : 1-4-5-8 et 2-3-6-7).</li>
+    <li><strong>Finale (Round 7)</strong> : Les <strong>2 meilleurs</strong> de chaque demi (selon les points approuvés dans la demi) se qualifient.</li>
+  </ul>
+
+  <h2>5) Égalités & Fair-play</h2>
+  <ul>
+    <li><strong>Égalité au classement</strong> : départage par (1) total de victoires de table, (2) total de points marqués en rondes, (3) tirage au sort si nécessaire.</li>
+    <li><strong>Comportement</strong> : respect et courtoisie ; triche et comportements toxiques mènent à l’exclusion.</li>
+    <li>Signalez tout différend à l’organisation ; sa décision est <strong>finale</strong>.</li>
+  </ul>
+
+  <p style="margin-top: 16px;">
+    Besoin d’aide ? Consultez aussi les pages <a href="{{ url_for('players') }}">Joueurs</a> et
+    <a href="{{ url_for('leaderboard') }}">Leaderboard</a>.
+  </p>
+</section>
+
+{% endblock %}

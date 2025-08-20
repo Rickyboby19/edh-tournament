@@ -1,66 +1,49 @@
 {% extends "base.html" %}
-{% block title %}Admin – Soumissions{% endblock %}
-
+{% block title %}Soumissions — Admin{% endblock %}
 {% block content %}
-<h1>Soumissions de points</h1>
+<section class="wrap">
+  <h1>Soumissions de points</h1>
 
-<!-- Filtre par joueur -->
-<form method="get" action="{{ url_for('admin_submissions') }}" style="margin-bottom:20px;">
-  <label for="player_id">Filtrer par joueur :</label>
-  <select name="player_id" id="player_id" onchange="this.form.submit()">
-    <option value="">-- Tous --</option>
-    {% for p in players %}
-      <option value="{{ p.id }}" {% if selected==p.id %}selected{% endif %}>
-        {{ p.name }} ({{ p.commander }})
-      </option>
-    {% endfor %}
-  </select>
-</form>
+  <form method="get" action="{{ url_for('admin_submissions') }}" style="margin:12px 0">
+    <label>Filtrer par joueur:
+      <select name="player_id" onchange="this.form.submit()">
+        <option value="">(Tous)</option>
+        {% for p in players %}
+          <option value="{{ p.id }}" {% if selected == p.id %}selected{% endif %}>
+            {{ p.name }} — {{ p.email }}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+    <noscript><button type="submit">Filtrer</button></noscript>
+  </form>
 
-{% if submissions %}
   <table class="table">
     <thead>
       <tr>
-        <th>ID</th>
-        <th>Joueur</th>
-        <th>Commandant</th>
-        <th>Match</th>
-        <th>Total Points</th>
-        <th>Détails objectifs</th>
-        <th>Statut</th>
         <th>Date</th>
+        <th>Ronde</th>
+        <th>Table</th>
+        <th>Joueur</th>
+        <th>Points</th>
+        <th>Statut</th>
       </tr>
     </thead>
     <tbody>
       {% for sub, user, match in submissions %}
-      <tr>
-        <td>{{ sub.id }}</td>
-        <td>{{ user.name }}</td>
-        <td>{{ user.commander }}</td>
-        <td>Ronde {{ match.round_number }} (Table {{ match.id }})</td>
-        <td><strong>{{ sub.total_points }}</strong></td>
-        <td>
-          <ul>
-            {% for oid, val in sub.payload.items() %}
-              {% set obj = objectives.get(oid) %}
-              <li>
-                {{ obj.label if obj else oid }} :
-                {{ val }}
-              </li>
-            {% endfor %}
-          </ul>
-        </td>
-        <td>
-          <span class="badge {{ sub.status }}">
-            {{ sub.status }}
-          </span>
-        </td>
-        <td>{{ sub.created_at.strftime("%Y-%m-%d %H:%M") if sub.created_at else "" }}</td>
-      </tr>
+        <tr>
+          <td>{{ sub.created_at }}</td>
+          <td>{{ match.round_number }}</td>
+          <td>{{ match.id }}</td>
+          <td>{{ user.name }}</td>
+          <td><strong>{{ sub.total_points }}</strong></td>
+          <td>{{ sub.status }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6">Aucune soumission.</td></tr>
       {% endfor %}
     </tbody>
   </table>
-{% else %}
-  <p>Aucune soumission trouvée.</p>
-{% endif %}
+</section>
 {% endblock %}
+

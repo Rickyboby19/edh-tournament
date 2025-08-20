@@ -139,6 +139,32 @@
 
 </section>
 
+<!-- DÉBUT DU TOURNOI + PHASES FINALES -->
+<div class="card" style="grid-column:1 / -1">
+  <h3>Phases du tournoi</h3>
+
+  <form method="post" action="{{ url_for('admin_tournament_start') }}" style="display:flex; gap:10px; align-items:flex-end; margin-bottom:10px;">
+    <label>Nombre de rondes (max 5)
+      <input type="number" name="max_rounds" value="5" min="1" max="5" />
+    </label>
+    <button type="submit" class="btn">🔔 Début du tournoi</button>
+  </form>
+
+  <form method="post" action="{{ url_for('admin_tournament_semis') }}" style="display:flex; gap:10px; align-items:flex-end; margin-bottom:10px;">
+    <button type="submit" class="btn">🏁 Générer les demi-finales (Top 8)</button>
+  </form>
+
+  <form method="post" action="{{ url_for('admin_tournament_final') }}" style="display:flex; gap:10px; align-items:flex-end;">
+    <button type="submit" class="btn">👑 Générer la finale (Top 4)</button>
+  </form>
+
+  <p class="hint" style="margin-top:8px">
+    Les rondes de saison utilisent une heuristique qui <em>maximise les rencontres uniques</em>.<br>
+    Théoriquement, en 5 rondes, chaque joueur peut rencontrer au plus 15 adversaires uniques (3 par ronde).
+  </p>
+</div>
+
+
 <script>
   // Masque/affiche la sélection multiple selon le mode
   const radios = document.querySelectorAll('input[name="recipients_mode"]');
