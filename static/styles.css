@@ -164,3 +164,61 @@ select, textarea {
 }
 .badge { display:inline-block; font-size:12px; padding:2px 6px; border-radius:10px; background:#eee; }
 .badge-ok { color:#137333; }
+
+/* ===== Header plus haut + logo agrandi ===== */
+.site-header {
+  position: sticky; top: 0; z-index: 50;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0;           /* était plus petit: on augmente un peu la hauteur */
+}
+
+.header-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+}
+
+.brand {
+  display: inline-flex; align-items: center; gap: 10px;
+  text-decoration: none; color: inherit;
+}
+
+.brand-logo {
+  height: 100px;              /* ← logo plus gros (ex: 48px). Mets 56px si tu le veux encore plus visible */
+  width: auto;
+  display: block;
+}
+
+.brand-title {
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: .2px;
+}
+
+.main-nav a {
+  margin: 0 8px;
+  text-decoration: none;
+  color: inherit;
+  opacity: .9;
+}
+.main-nav a:hover { opacity: 1; }
+
+.header-actions { display: flex; align-items: center; gap: 8px; }
+
+/* Bouton lien Discord */
+.discord-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  text-decoration: none; color: inherit;
+  border: 1px solid var(--line);
+  padding: 8px 10px; border-radius: 999px;
+  line-height: 1;
+}
+.discord-link:hover { background: var(--surface-3); }
+
+/* Optionnel: compacité sur mobile */
+@media (max-width: 720px) {
+  .brand-title { display: none; }          /* ne garder que le logo si tu veux */
+  .main-nav a { margin: 0 6px; }
+  .brand-logo { height: 42px; }
+}
+

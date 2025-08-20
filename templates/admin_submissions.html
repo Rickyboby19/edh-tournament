@@ -1,49 +1,101 @@
 {% extends "base.html" %}
-{% block title %}Soumissions — Admin{% endblock %}
 {% block content %}
-<section class="wrap">
-  <h1>Soumissions de points</h1>
 
-  <form method="get" action="{{ url_for('admin_submissions') }}" style="margin:12px 0">
-    <label>Filtrer par joueur:
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1 style="margin:0">Submissions (admin)</h1>
+    <p class="muted" style="margin:0">Toutes les feuilles soumises (lecture seule)</p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a class="btn ghost" href="{{ url_for('admin_home') }}">⟵ Retour admin</a>
+    <a class="btn ghost" href="{{ url_for('submissions_pending') }}">Confirmations en attente</a>
+  </div>
+</div>
+
+<div class="card">
+  <form method="get" action="{{ url_for('admin_submissions') }}" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+    <label>Filtrer par joueur
       <select name="player_id" onchange="this.form.submit()">
-        <option value="">(Tous)</option>
+        <option value="">— Tous —</option>
         {% for p in players %}
-          <option value="{{ p.id }}" {% if selected == p.id %}selected{% endif %}>
-            {{ p.name }} — {{ p.email }}
-          </option>
+          <option value="{{ p.id }}" {% if selected and p.id == selected %}selected{% endif %}>{{ p.name }}</option>
         {% endfor %}
       </select>
     </label>
-    <noscript><button type="submit">Filtrer</button></noscript>
+    <noscript><button class="btn">Filtrer</button></noscript>
   </form>
 
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Date</th>
-        <th>Ronde</th>
-        <th>Table</th>
-        <th>Joueur</th>
-        <th>Points</th>
-        <th>Statut</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for sub, user, match in submissions %}
+  <div class="table-wrap" style="margin-top:10px; overflow:auto">
+    <table class="table">
+      <thead>
         <tr>
-          <td>{{ sub.created_at }}</td>
-          <td>{{ match.round_number }}</td>
-          <td>{{ match.id }}</td>
-          <td>{{ user.name }}</td>
-          <td><strong>{{ sub.total_points }}</strong></td>
-          <td>{{ sub.status }}</td>
+          <th style="white-space:nowrap">Date</th>
+          <th>Joueur</th>
+          <th style="white-space:nowrap">Ronde / Table</th>
+          <th>Statut</th>
+          <th style="white-space:nowrap">Points</th>
+          <th>Détails</th>
+          <th style="white-space:nowrap">Liens</th>
         </tr>
-      {% else %}
-        <tr><td colspan="6">Aucune soumission.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</section>
-{% endblock %}
+      </thead>
+      <tbody>
+        {% for sub, user, match in submissions %}
+        <tr>
+          <td style="white-space:nowrap">{{ sub.created_at.strftime('%Y-%m-%d %H:%M') if sub.created_at else '—' }}</td>
+          <td>{{ user.name }}</td>
+          <td style="white-space:nowrap">R{{ match.round_number }} — T{{ match.id }}</td>
+          <td>
+            {% if sub.status == 'approved' %}
+              <span class="tag">approuvée</span>
+            {% elif sub.status == 'rejected' %}
+              <span class="tag" style="background:#c62828;color:white">rejetée</span>
+            {% else %}
+              <span class="tag" style="background:var(--line);color:var(--text)">en attente</span>
+            {% endif %}
+          </td>
+          <td><strong>{{ sub.total_points }}</strong></td>
+          <td>
+            {% if sub.payload %}
+              <details>
+                <summary>Voir</summary>
+                <ul style="margin:8px 0 0 16px">
+                  {% for k, v in sub.payload.items() %}
+                    {% set meta = objectives.get(k) %}
+                    {% if meta %}
+                      {% if meta.type == 'bool' %}
+                        {% if v %}
+                          <li>{{ meta.label or k }} — Oui (+{{ meta.points }})</li>
+                        {% endif %}
+                      {% else %}
+                        {% if v|int > 0 %}
+                          <li>{{ meta.label or k }} — {{ v }} × {{ meta.points }} = +{{ v|int * meta.points }}</li>
+                        {% endif %}
+                      {% endif %}
+                    {% else %}
+                      <li>{{ k }}: {{ v }}</li>
+                    {% endif %}
+                  {% endfor %}
+                </ul>
+              </details>
+            {% else %}
+              <span class="muted">—</span>
+            {% endif %}
+          </td>
+          <td style="white-space:nowrap">
+            <a class="btn small ghost" href="{{ url_for('match_detail', match_id=match.id) }}">Voir la table</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="muted">Aucune feuille.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
+  <p class="hint" style="margin-top:8px">
+    Cette page ne modifie pas les statuts : l’approbation/rejet se fait par les joueurs concernés via
+    <a href="{{ url_for('submissions_pending') }}">Confirmations en attente</a>.
+  </p>
+</div>
+
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1 style="margin:0">{{ t.name }}</h1>
+    <p class="muted" style="margin:0">
+      Statut : <strong>{{ t.status }}</strong> —
+      Ronde : <strong>{{ t.current_round }}/{{ t.rounds_planned }}</strong>
+    </p>
+  </div>
+  <p><a class="btn ghost" href="{{ url_for('admin_home') }}">← Retour Admin</a></p>
+</div>
+
+<section class="grid cols-3" style="align-items:start">
+  <div class="card">
+    <h3>Actions</h3>
+
+    {% if t.status == 'pending' %}
+      <form method="post" action="{{ url_for('admin_tournament_start', tournament_id=t.id) }}" class="stack">
+        <label>Nombre de rondes prévues
+          <input type="number" name="max_rounds" min="1" max="5" value="{{ t.rounds_planned }}">
+        </label>
+        <button class="btn">Démarrer le tournoi</button>
+      </form>
+    {% elif t.status == 'started' %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <form method="post" action="{{ url_for('admin_tournament_round_prev', tournament_id=t.id) }}">
+          <button class="btn secondary">◀ Ronde -1</button>
+        </form>
+        <form method="post" action="{{ url_for('admin_tournament_round_next', tournament_id=t.id) }}">
+          <button class="btn">Ronde +1 ▶</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="muted">Tournoi terminé/annulé.</p>
+    {% endif %}
+  </div>
+
+  <div class="card" style="grid-column:1/-1">
+    <h3>Inscriptions ({{ regs|length }})</h3>
+
+    {% if t.status == 'pending' %}
+    <form method="post" action="{{ url_for('admin_tournament_register', tournament_id=t.id) }}" class="stack" style="margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:2fr 2fr 3fr auto;gap:8px;align-items:end">
+        <label>Joueur
+          <select name="user_id" required>
+            <option value="" disabled selected>— choisir —</option>
+            {% for u in not_registered %}
+              <option value="{{ u.id }}">{{ u.name }} — {{ u.email }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Commander
+          <input type="text" name="commander" placeholder="Nom du commandant">
+        </label>
+        <label>Decklist (URL)
+          <input type="url" name="decklist_url" placeholder="https://...">
+        </label>
+        <button class="btn">Ajouter / Mettre à jour</button>
+      </div>
+      <p class="hint">Vous pouvez réutiliser ce formulaire pour modifier le commander/decklist d’un joueur déjà inscrit (sélectionnez-le d’abord dans la liste “Joueur”).</p>
+    </form>
+    {% else %}
+      <p class="muted">Les inscriptions ne sont modifiables qu’avant le démarrage.</p>
+    {% endif %}
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Joueur</th>
+          <th>Commander</th>
+          <th>Decklist</th>
+          <th style="width:1%"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tp, u in regs %}
+        <tr>
+          <td>{{ u.name }}<br><span class="muted">{{ u.email }}</span></td>
+          <td>{{ tp.commander or '—' }}</td>
+          <td>
+            {% if tp.decklist_url %}
+              <a href="{{ tp.decklist_url }}" target="_blank" rel="noopener">Lien</a>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            {% if t.status == 'pending' %}
+            <form method="post" action="{{ url_for('admin_tournament_unregister', tournament_id=t.id) }}" onsubmit="return confirm('Retirer {{ u.name }} ?')">
+              <input type="hidden" name="user_id" value="{{ u.id }}">
+              <button class="btn danger">Retirer</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4">Aucun joueur inscrit.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Annuler le tournoi</h3>
+    <form method="post" action="{{ url_for('admin_tournament_cancel', tournament_id=t.id) }}" onsubmit="return confirm('Annuler définitivement ce tournoi ?')">
+      <label style="display:flex;gap:8px;align-items:center">
+        <input type="checkbox" name="delete_matches"> Supprimer toutes les tables et feuilles de score
+      </label>
+      <label style="display:flex;gap:8px;align-items:center">
+        <input type="checkbox" name="delete_regs"> Supprimer toutes les inscriptions
+      </label>
+      <p class="hint">Le statut passera à <code>cancelled</code>. Vous pourrez créer un nouveau tournoi ensuite.</p>
+      <button class="btn danger">Annuler ce tournoi</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>Tables en cours (ronde {{ t.current_round }})</h3>
+    <ul style="margin:8px 0 0 0;padding:0;list-style:none">
+      {% for row in current_tables %}
+      <li style="padding:6px 0;border-bottom:1px solid var(--line)">
+        <a class="btn secondary" href="{{ url_for('match_detail', match_id=row.match.id) }}">Table {{ row.match.id }}</a>
+        — {% for p in row.players %}{{ p.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+      </li>
+      {% else %}
+      <li>Aucune table pour cette ronde.</li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+
+{% endblock %}
